@@ -1,0 +1,257 @@
+version: '3.8'
+
+services:
+  # MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: kayak-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: kayak_db
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - kayak-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Zookeeper for Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: kayak-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - kayak-network
+    healthcheck:
+      test: nc -z localhost 2181
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kafka
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kayak-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - kayak-network
+    healthcheck:
+      test: kafka-topics --bootstrap-server localhost:9092 --list
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # User Service
+  user-service:
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile
+    container_name: kayak-user-service
+    environment:
+      PORT: 3001
+      NODE_ENV: production
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/kayak_db?authSource=admin
+      KAFKA_BROKER: kafka:9093
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+    ports:
+      - "3001:3001"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - kayak-network
+
+  # Listing Service
+  listing-service:
+    build:
+      context: ./services/listing-service
+      dockerfile: Dockerfile
+    container_name: kayak-listing-service
+    environment:
+      PORT: 3002
+      NODE_ENV: production
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/kayak_db?authSource=admin
+      KAFKA_BROKER: kafka:9093
+    ports:
+      - "3002:3002"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - kayak-network
+
+  # Booking Service
+  booking-service:
+    build:
+      context: ./services/booking-service
+      dockerfile: Dockerfile
+    container_name: kayak-booking-service
+    environment:
+      PORT: 3003
+      NODE_ENV: production
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/kayak_db?authSource=admin
+      KAFKA_BROKER: kafka:9093
+      USER_SERVICE_URL: http://user-service:3001
+      LISTING_SERVICE_URL: http://listing-service:3002
+    ports:
+      - "3003:3003"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+      listing-service:
+        condition: service_started
+    networks:
+      - kayak-network
+
+  # Billing Service
+  billing-service:
+    build:
+      context: ./services/billing-service
+      dockerfile: Dockerfile
+    container_name: kayak-billing-service
+    environment:
+      PORT: 3004
+      NODE_ENV: production
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/kayak_db?authSource=admin
+      KAFKA_BROKER: kafka:9093
+      BOOKING_SERVICE_URL: http://booking-service:3003
+    ports:
+      - "3004:3004"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      booking-service:
+        condition: service_started
+    networks:
+      - kayak-network
+
+  # Review & Logging Service
+  review-logging-service:
+    build:
+      context: ./services/review-logging-service
+      dockerfile: Dockerfile
+    container_name: kayak-review-logging-service
+    environment:
+      PORT: 3005
+      NODE_ENV: production
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/kayak_db?authSource=admin
+      KAFKA_BROKER: kafka:9093
+    ports:
+      - "3005:3005"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - kayak-network
+
+  # Admin/Analytics Service
+  admin-analytics-service:
+    build:
+      context: ./services/admin-analytics-service
+      dockerfile: Dockerfile
+    container_name: kayak-admin-analytics-service
+    environment:
+      PORT: 3006
+      NODE_ENV: production
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/kayak_db?authSource=admin
+      KAFKA_BROKER: kafka:9093
+      ADMIN_API_KEY: admin-super-secret-key-change-in-production
+    ports:
+      - "3006:3006"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - kayak-network
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: kayak-api-gateway
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      USER_SERVICE_URL: http://user-service:3001
+      LISTING_SERVICE_URL: http://listing-service:3002
+      BOOKING_SERVICE_URL: http://booking-service:3003
+      BILLING_SERVICE_URL: http://billing-service:3004
+      REVIEW_LOGGING_SERVICE_URL: http://review-logging-service:3005
+      ADMIN_ANALYTICS_SERVICE_URL: http://admin-analytics-service:3006
+      KAFKA_BROKER: kafka:9093
+    ports:
+      - "3000:3000"
+    depends_on:
+      - user-service
+      - listing-service
+      - booking-service
+      - billing-service
+      - review-logging-service
+      - admin-analytics-service
+      - kafka
+    networks:
+      - kayak-network
+
+  # Agentic Recommendation Service (FastAPI)
+  agentic-recommendation-service:
+    build:
+      context: ./services/agentic-recommendation-service
+      dockerfile: Dockerfile
+    container_name: kayak-agentic-recommendation-service
+    environment:
+      PORT: 8000
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/kayak_db?authSource=admin
+      KAFKA_BROKER: kafka:9093
+    ports:
+      - "8000:8000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - kayak-network
+
+networks:
+  kayak-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+
