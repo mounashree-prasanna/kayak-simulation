@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-service
+  namespace: kayak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: billing-service
+  template:
+    metadata:
+      labels:
+        app: billing-service
+    spec:
+      containers:
+      - name: billing-service
+        image: kayak-billing-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3004
+        env:
+        - name: PORT
+          value: "3004"
+        - name: NODE_ENV
+          value: "production"
+        - name: MONGODB_URI
+          value: "mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236"
+        - name: MONGODB_DB_NAME
+          value: "kayak"
+        - name: KAFKA_BROKER
+          value: "kafka-service:9093"
+        - name: BOOKING_SERVICE_URL
+          value: "http://booking-service:3003"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: billing-service
+  namespace: kayak
+spec:
+  type: ClusterIP
+  selector:
+    app: billing-service
+  ports:
+  - port: 3004
+    targetPort: 3004
+    protocol: TCP
+

@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentic-recommendation-service
+  namespace: kayak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agentic-recommendation-service
+  template:
+    metadata:
+      labels:
+        app: agentic-recommendation-service
+    spec:
+      containers:
+      - name: agentic-recommendation-service
+        image: kayak-agentic-recommendation-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+        env:
+        - name: PORT
+          value: "8000"
+        - name: MONGODB_URI
+          value: "mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236"
+        - name: MONGODB_DB_NAME
+          value: "kayak"
+        - name: KAFKA_BROKER
+          value: "kafka-service:9093"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agentic-recommendation-service
+  namespace: kayak
+spec:
+  type: ClusterIP
+  selector:
+    app: agentic-recommendation-service
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+

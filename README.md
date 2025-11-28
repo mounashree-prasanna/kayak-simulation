@@ -1,142 +1,275 @@
-# Kayak-Style Travel System - Microservices Backend
+# 🛫 Kayak Travel Platform
 
-A complete distributed, service-oriented, microservices backend for a Kayak-like travel booking application.
+A full-stack microservices-based travel booking platform similar to KAYAK, built with React, Node.js, Python, MongoDB, Kafka, and Kubernetes.
 
-## Architecture
+## ✨ Features
 
-This project uses a **3-tier microservices architecture**:
+- **Flight, Hotel, and Car Rental Search** - Comprehensive search functionality
+- **Real-time Booking System** - Book flights, hotels, and cars
+- **User Management** - User registration, authentication, and profiles
+- **Billing & Payments** - Integrated billing service
+- **Reviews & Ratings** - User reviews and ratings system
+- **Admin Analytics** - Analytics dashboard for administrators
+- **Agentic Recommendations** - AI-powered travel recommendations
+- **Event Streaming** - Kafka-based event-driven architecture
+- **WebSocket Support** - Real-time updates via WebSockets
+- **Kubernetes Ready** - Production-ready Kubernetes deployment
 
-- **Client Tier**: Not implemented (assumes web/mobile clients)
-- **Middleware Tier**: REST-based microservices + Kafka messaging
-- **Data Tier**: MongoDB only (no SQL databases)
+## 🏗️ Architecture
 
-## Services
+### Microservices
 
-1. **API Gateway** (Port 3000) - Single entry point for all REST endpoints
-2. **User Service** (Port 3001) - User management and authentication
-3. **Listing Service** (Port 3002) - Flights, Hotels, Cars listings
-4. **Booking Service** (Port 3003) - Booking management
-5. **Billing Service** (Port 3004) - Payment processing and billing
-6. **Review & Logging Service** (Port 3005) - Reviews and click/tracking logs
-7. **Admin/Analytics Service** (Port 3006) - Analytics and reporting
-8. **Agentic Recommendation Service** (Port 8000) - FastAPI service with AI recommendations and WebSockets
+- **User Service** - User management and authentication
+- **Listing Service** - Flight, hotel, and car listings
+- **Booking Service** - Booking management
+- **Billing Service** - Payment processing
+- **Review/Logging Service** - Reviews and user activity logging
+- **Admin/Analytics Service** - Analytics and admin operations
+- **API Gateway** - Single entry point for all API requests
+- **Agentic Recommendation Service** - AI-powered recommendations (Python/FastAPI)
 
-## Tech Stack
+### Technology Stack
 
-- **Node.js + TypeScript** for core services (Express)
-- **Python + FastAPI** for Recommendation Service
-- **MongoDB** (only database, no SQL)
-- **Apache Kafka** for event-driven messaging
-- **Docker** for containerization
+- **Frontend**: React 18, Vite, Redux Toolkit, React Router, Framer Motion
+- **Backend**: Node.js, Express.js
+- **AI Service**: Python, FastAPI, Uvicorn
+- **Database**: MongoDB Atlas
+- **Message Queue**: Apache Kafka
+- **Containerization**: Docker
+- **Orchestration**: Kubernetes
+- **Ingress**: Nginx Ingress Controller
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Docker & Docker Compose
-- Node.js 18+ (for local development)
-- Python 3.11+ (for recommendation service local dev)
+- Docker Desktop (or Docker + Docker Compose)
+- Node.js 20+ (for local development)
+- kubectl (for Kubernetes deployment)
+- MongoDB Atlas account
 
-### Start All Services
+### Option 1: Docker Compose (Recommended for Development)
 
-```bash
-docker-compose up --build
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd kayak-simulation
+   ```
+
+2. **Configure MongoDB Atlas**
+   - Create account at https://www.mongodb.com/cloud/atlas
+   - Get connection string
+   - Update `docker-compose.yml` with your MongoDB URI
+
+3. **Start all services**
+   ```bash
+   docker-compose up --build
+   ```
+
+4. **Start frontend (in new terminal)**
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+
+5. **Access the application**
+   - Frontend: http://localhost:5174
+   - API Gateway: http://localhost:3000
+
+### Option 2: Kubernetes (Recommended for Production)
+
+1. **Setup Kubernetes**
+   - Docker Desktop: Enable Kubernetes in Settings
+   - OR Minikube: `minikube start`
+
+2. **Install Nginx Ingress**
+   ```bash
+   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/cloud/deploy.yaml
+   ```
+
+3. **Configure MongoDB Atlas**
+   - Update MongoDB URI in `k8s/*.yaml` files
+
+4. **Build and deploy**
+   ```bash
+   cd k8s
+   ./build-images.sh
+   ./deploy.sh
+   ```
+
+5. **Configure domain**
+   ```bash
+   sudo nano /etc/hosts
+   # Add: 127.0.0.1 kayak.local
+   ```
+
+6. **Access the application**
+   - http://kayak.local
+
+## 📚 Documentation
+
+- **[SETUP_GUIDE.md](./SETUP_GUIDE.md)** - Complete setup instructions
+- **[NEXT_STEPS.md](./NEXT_STEPS.md)** - Step-by-step deployment guide
+- **[k8s/README.md](./k8s/README.md)** - Kubernetes deployment details
+- **[docs/API_DOCUMENTATION.md](./docs/API_DOCUMENTATION.md)** - API endpoints documentation
+
+## 🗂️ Project Structure
+
+```
+kayak-simulation/
+├── frontend/                    # React frontend
+│   ├── src/
+│   │   ├── components/          # React components
+│   │   ├── pages/               # Page components
+│   │   ├── store/               # Redux store
+│   │   └── services/            # API services
+│   └── Dockerfile
+├── services/                     # Microservices
+│   ├── user-service/
+│   ├── listing-service/
+│   ├── booking-service/
+│   ├── billing-service/
+│   ├── review-logging-service/
+│   ├── admin-analytics-service/
+│   ├── api-gateway/
+│   └── agentic-recommendation-service/
+├── k8s/                         # Kubernetes manifests
+│   ├── *.yaml                   # Service deployments
+│   ├── build-images.sh          # Build script
+│   └── deploy.sh                # Deployment script
+├── scripts/                     # Utility scripts
+├── docker-compose.yml           # Docker Compose config
+└── README.md                    # This file
 ```
 
-This will start:
-- MongoDB on port 27017
-- Kafka + Zookeeper on ports 9092, 9093, 2181
-- All microservices on their respective ports
-- API Gateway on port 3000
+## 🔧 Configuration
 
-### Access Services
+### Environment Variables
 
+Key variables to configure:
+
+- `MONGODB_URI` - MongoDB Atlas connection string
+- `KAFKA_BROKER` - Kafka broker address
+- `JWT_SECRET` - JWT secret key (change in production!)
+- `ADMIN_API_KEY` - Admin API key (change in production!)
+
+### MongoDB Atlas Setup
+
+1. Create account: https://www.mongodb.com/cloud/atlas
+2. Create cluster (free tier works)
+3. Create database user
+4. Whitelist IP address (use `0.0.0.0/0` for development)
+5. Get connection string and update in configuration files
+
+## 🧪 Testing
+
+```bash
+# Test API Gateway
+curl http://localhost:3000/health
+
+# Test individual services
+curl http://localhost:3001/health  # User Service
+curl http://localhost:3002/health  # Listing Service
+```
+
+## 🐛 Troubleshooting
+
+### Services Won't Start
+- Check logs: `docker-compose logs` or `kubectl logs -n kayak`
+- Verify MongoDB connection
+- Ensure ports are not in use
+
+### MongoDB Connection Issues
+- Verify connection string
+- Check IP whitelist in MongoDB Atlas
+- Test connection with MongoDB Compass
+
+### Frontend Not Loading
+- Check if frontend dev server is running
+- Verify API Gateway is accessible
+- Check browser console for errors
+
+See [SETUP_GUIDE.md](./SETUP_GUIDE.md) for detailed troubleshooting.
+
+## 📝 Development
+
+### Running Services Locally
+
+```bash
+cd services/<service-name>
+npm install
+npm start
+```
+
+### Frontend Development
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Making Changes
+
+1. Edit code in respective service directories
+2. Rebuild Docker images: `docker-compose up --build`
+3. Or restart Kubernetes deployments: `kubectl rollout restart deployment/<service> -n kayak`
+
+## 🚢 Deployment
+
+### Docker Compose
+```bash
+docker-compose up --build -d
+```
+
+### Kubernetes
+```bash
+cd k8s
+./build-images.sh
+./deploy.sh
+```
+
+## 📊 Service Endpoints
+
+### Docker Compose
+- Frontend: http://localhost:5174
 - API Gateway: http://localhost:3000
 - User Service: http://localhost:3001
 - Listing Service: http://localhost:3002
 - Booking Service: http://localhost:3003
 - Billing Service: http://localhost:3004
-- Review & Logging Service: http://localhost:3005
-- Admin/Analytics Service: http://localhost:3006
+- Review Service: http://localhost:3005
+- Analytics Service: http://localhost:3006
 - Recommendation Service: http://localhost:8000
 
-### Seed Data
+### Kubernetes
+- Frontend: http://kayak.local
+- API: http://kayak.local/api
+- WebSocket: ws://kayak.local/ws
 
-After services are up, run the seed script:
+## 🤝 Contributing
 
-```bash
-# From root directory
-node scripts/seedData.js
-```
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
 
-Or use the test harness:
+## 📄 License
 
-```bash
-node scripts/testHarness.js
-```
+[Add your license information here]
 
-## MongoDB Collections
+## 👥 Authors
 
-The system uses the following MongoDB collections:
+[Add author information here]
 
-1. `users` - User accounts with SSN format user_id
-2. `flights` - Flight listings
-3. `hotels` - Hotel listings
-4. `cars` - Car rental listings
-5. `bookings` - All bookings (Flight/Hotel/Car)
-6. `billings` - Billing/transaction records
-7. `reviews` - User reviews and ratings
-8. `images` - Images for hotels/rooms/cars
-9. `page_click_logs` - Page click tracking
-10. `listing_click_logs` - Listing click tracking
-11. `user_traces` - User journey tracking
-12. `deals` - Deal aggregations (Recommendation Service)
+## 🙏 Acknowledgments
 
-## Kafka Topics
+- Built for educational purposes
+- Inspired by KAYAK travel platform
 
-- `user.events` - User lifecycle events
-- `booking.events` - Booking events (created, confirmed, cancelled)
-- `billing.events` - Billing events (success, failed)
-- `deal.events` - Deal updates from Recommendation Service
-- `tracking.events` - Click/tracking events
+---
 
-## Development
+**For detailed setup instructions, see [SETUP_GUIDE.md](./SETUP_GUIDE.md)**
 
-### Local Development (Individual Services)
-
-Each service has its own directory with:
-- `package.json` with dependencies
-- `tsconfig.json` for TypeScript
-- `src/` directory with source code
-- `Dockerfile` for containerization
-
-To run a service locally:
-
-```bash
-cd user-service
-npm install
-npm run dev
-```
-
-### Environment Variables
-
-Each service uses environment variables. See individual service `.env.example` files or the docker-compose.yml for configuration.
-
-## Testing
-
-Run the test harness to:
-- Create 10,000 listings (mix of flights, hotels, cars)
-- Create 10,000 users
-- Create 100,000 bookings and billing records
-
-```bash
-node scripts/testHarness.js
-```
-
-## API Documentation
-
-See `/docs/API_DOCUMENTATION.md` for detailed API endpoint documentation.
-
-## License
-
-ISC
+**Happy Traveling! ✈️🏨🚗**

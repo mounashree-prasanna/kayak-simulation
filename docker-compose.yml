@@ -1,25 +1,8 @@
 version: '3.8'
 
 services:
-  # MongoDB
-  mongodb:
-    image: mongo:7.0
-    container_name: kayak-mongodb
-    ports:
-      - "27017:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: password
-      MONGO_INITDB_DATABASE: kayak_db
-    volumes:
-      - mongodb_data:/data/db
-    networks:
-      - kayak-network
-    healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # MongoDB Atlas is used instead of local MongoDB
+  # Connection: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
 
   # Zookeeper for Kafka
   zookeeper:
@@ -71,14 +54,13 @@ services:
     environment:
       PORT: 3001
       NODE_ENV: production
-      MONGODB_URI: mongodb://admin:password@mongodb:27017/kayak_db?authSource=admin
+      MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
+      MONGODB_DB_NAME: kayak
       KAFKA_BROKER: kafka:9093
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
     ports:
       - "3001:3001"
     depends_on:
-      mongodb:
-        condition: service_healthy
       kafka:
         condition: service_healthy
     networks:
@@ -93,13 +75,12 @@ services:
     environment:
       PORT: 3002
       NODE_ENV: production
-      MONGODB_URI: mongodb://admin:password@mongodb:27017/kayak_db?authSource=admin
+      MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
+      MONGODB_DB_NAME: kayak
       KAFKA_BROKER: kafka:9093
     ports:
       - "3002:3002"
     depends_on:
-      mongodb:
-        condition: service_healthy
       kafka:
         condition: service_healthy
     networks:
@@ -114,15 +95,14 @@ services:
     environment:
       PORT: 3003
       NODE_ENV: production
-      MONGODB_URI: mongodb://admin:password@mongodb:27017/kayak_db?authSource=admin
+      MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
+      MONGODB_DB_NAME: kayak
       KAFKA_BROKER: kafka:9093
       USER_SERVICE_URL: http://user-service:3001
       LISTING_SERVICE_URL: http://listing-service:3002
     ports:
       - "3003:3003"
     depends_on:
-      mongodb:
-        condition: service_healthy
       kafka:
         condition: service_healthy
       user-service:
@@ -141,14 +121,13 @@ services:
     environment:
       PORT: 3004
       NODE_ENV: production
-      MONGODB_URI: mongodb://admin:password@mongodb:27017/kayak_db?authSource=admin
+      MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
+      MONGODB_DB_NAME: kayak
       KAFKA_BROKER: kafka:9093
       BOOKING_SERVICE_URL: http://booking-service:3003
     ports:
       - "3004:3004"
     depends_on:
-      mongodb:
-        condition: service_healthy
       kafka:
         condition: service_healthy
       booking-service:
@@ -165,13 +144,12 @@ services:
     environment:
       PORT: 3005
       NODE_ENV: production
-      MONGODB_URI: mongodb://admin:password@mongodb:27017/kayak_db?authSource=admin
+      MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
+      MONGODB_DB_NAME: kayak
       KAFKA_BROKER: kafka:9093
     ports:
       - "3005:3005"
     depends_on:
-      mongodb:
-        condition: service_healthy
       kafka:
         condition: service_healthy
     networks:
@@ -186,14 +164,13 @@ services:
     environment:
       PORT: 3006
       NODE_ENV: production
-      MONGODB_URI: mongodb://admin:password@mongodb:27017/kayak_db?authSource=admin
+      MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
+      MONGODB_DB_NAME: kayak
       KAFKA_BROKER: kafka:9093
       ADMIN_API_KEY: admin-super-secret-key-change-in-production
     ports:
       - "3006:3006"
     depends_on:
-      mongodb:
-        condition: service_healthy
       kafka:
         condition: service_healthy
     networks:
@@ -236,13 +213,12 @@ services:
     container_name: kayak-agentic-recommendation-service
     environment:
       PORT: 8000
-      MONGODB_URI: mongodb://admin:password@mongodb:27017/kayak_db?authSource=admin
+      MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
+      MONGODB_DB_NAME: kayak
       KAFKA_BROKER: kafka:9093
     ports:
       - "8000:8000"
     depends_on:
-      mongodb:
-        condition: service_healthy
       kafka:
         condition: service_healthy
     networks:
@@ -252,6 +228,7 @@ networks:
   kayak-network:
     driver: bridge
 
-volumes:
-  mongodb_data:
+# MongoDB Atlas is used instead of local volumes
+# volumes:
+#   mongodb_data:
 

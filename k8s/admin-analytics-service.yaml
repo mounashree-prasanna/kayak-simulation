@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-analytics-service
+  namespace: kayak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: admin-analytics-service
+  template:
+    metadata:
+      labels:
+        app: admin-analytics-service
+    spec:
+      containers:
+      - name: admin-analytics-service
+        image: kayak-admin-analytics-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3006
+        env:
+        - name: PORT
+          value: "3006"
+        - name: NODE_ENV
+          value: "production"
+        - name: MONGODB_URI
+          value: "mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236"
+        - name: MONGODB_DB_NAME
+          value: "kayak"
+        - name: KAFKA_BROKER
+          value: "kafka-service:9093"
+        - name: ADMIN_API_KEY
+          value: "admin-super-secret-key-change-in-production"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-analytics-service
+  namespace: kayak
+spec:
+  type: ClusterIP
+  selector:
+    app: admin-analytics-service
+  ports:
+  - port: 3006
+    targetPort: 3006
+    protocol: TCP
+
