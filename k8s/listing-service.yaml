@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: listing-service
+  namespace: kayak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: listing-service
+  template:
+    metadata:
+      labels:
+        app: listing-service
+    spec:
+      containers:
+      - name: listing-service
+        image: kayak-listing-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3002
+        env:
+        - name: PORT
+          value: "3002"
+        - name: NODE_ENV
+          value: "production"
+        - name: MONGODB_URI
+          value: "mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236"
+        - name: MONGODB_DB_NAME
+          value: "kayak"
+        - name: KAFKA_BROKER
+          value: "kafka-service:9093"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: listing-service
+  namespace: kayak
+spec:
+  type: ClusterIP
+  selector:
+    app: listing-service
+  ports:
+  - port: 3002
+    targetPort: 3002
+    protocol: TCP
+

@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: booking-service
+  namespace: kayak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: booking-service
+  template:
+    metadata:
+      labels:
+        app: booking-service
+    spec:
+      containers:
+      - name: booking-service
+        image: kayak-booking-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3003
+        env:
+        - name: PORT
+          value: "3003"
+        - name: NODE_ENV
+          value: "production"
+        - name: MONGODB_URI
+          value: "mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236"
+        - name: MONGODB_DB_NAME
+          value: "kayak"
+        - name: KAFKA_BROKER
+          value: "kafka-service:9093"
+        - name: USER_SERVICE_URL
+          value: "http://user-service:3001"
+        - name: LISTING_SERVICE_URL
+          value: "http://listing-service:3002"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: booking-service
+  namespace: kayak
+spec:
+  type: ClusterIP
+  selector:
+    app: booking-service
+  ports:
+  - port: 3003
+    targetPort: 3003
+    protocol: TCP
+

@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kayak-ingress
+  namespace: kayak
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: kayak.local
+    http:
+      paths:
+      # Frontend - serve static files
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-service
+            port:
+              number: 80
+      # API Gateway - proxy /api requests
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway-service
+            port:
+              number: 3000
+      # WebSocket for recommendation service
+      - path: /ws
+        pathType: Prefix
+        backend:
+          service:
+            name: agentic-recommendation-service
+            port:
+              number: 8000
+
