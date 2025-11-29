@@ -2,9 +2,83 @@ const User = require('../models/User');
 const { publishUserEvent } = require('../config/kafka');
 const { validateSSN, validateState, validateZip, validateEmail } = require('../utils/validation');
 
+const loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    console.log('[User Service] Login attempt for email:', email);
+
+    // Validate input
+    if (!email || !password) {
+      console.log('[User Service] Missing email or password');
+      res.status(400).json({
+        success: false,
+        error: 'Email and password are required'
+      });
+      return;
+    }
+
+    // Find user by email and include password
+    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+    console.log('[User Service] User found:', user ? 'Yes' : 'No');
+
+    if (!user) {
+      console.log('[User Service] User not found for email:', email);
+      res.status(401).json({
+        success: false,
+        error: 'Invalid email or password'
+      });
+      return;
+    }
+
+    // Check if user has a password set (for users created before password support)
+    if (!user.password || typeof user.password !== 'string' || user.password.trim() === '') {
+      console.log('[User Service] User has no password set');
+      res.status(401).json({
+        success: false,
+        error: 'Account does not have a password set. Please register again or contact support.'
+      });
+      return;
+    }
+
+    console.log('[User Service] Comparing password...');
+    // Compare password - this method has internal error handling
+    const isPasswordValid = await user.comparePassword(password);
+    console.log('[User Service] Password valid:', isPasswordValid);
+
+    if (!isPasswordValid) {
+      console.log('[User Service] Invalid password');
+      res.status(401).json({
+        success: false,
+        error: 'Invalid email or password'
+      });
+      return;
+    }
+
+    // Remove password from response
+    const userObj = user.toObject();
+    delete userObj.password;
+
+    console.log('[User Service] Login successful for user:', user.email);
+    // Return user data (token would be generated here in production with JWT)
+    res.status(200).json({
+      success: true,
+      data: {
+        user: userObj,
+        token: user.user_id // Using user_id as token for now (in production, use JWT)
+      }
+    });
+  } catch (error) {
+    console.error('[User Service] Login error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Login failed'
+    });
+  }
+};
+
 const createUser = async (req, res) => {
   try {
-    const { user_id, first_name, last_name, address, phone_number, email, profile_image_url, payment_details } = req.body;
+    const { user_id, first_name, last_name, address, phone_number, email, password, profile_image_url, payment_details } = req.body;
 
     // Validation
     if (!validateSSN(user_id)) {
@@ -58,6 +132,15 @@ const createUser = async (req, res) => {
       return;
     }
 
+    // Validate password
+    if (!password || password.length < 6) {
+      res.status(400).json({
+        success: false,
+        error: 'Password is required and must be at least 6 characters long'
+      });
+      return;
+    }
+
     // Create user
     const user = new User({
       user_id,
@@ -66,6 +149,7 @@ const createUser = async (req, res) => {
       address,
       phone_number,
       email,
+      password,
       profile_image_url,
       payment_details,
       created_at: new Date(),
@@ -74,12 +158,16 @@ const createUser = async (req, res) => {
 
     const savedUser = await user.save();
 
+    // Remove password from user object before sending response
+    const userObj = savedUser.toObject();
+    delete userObj.password;
+
     // Publish Kafka event
-    await publishUserEvent('user_created', savedUser.toObject());
+    await publishUserEvent('user_created', userObj);
 
     res.status(201).json({
       success: true,
-      data: savedUser
+      data: userObj
     });
   } catch (error) {
     if (error.code === 11000) {
@@ -235,6 +323,7 @@ const deleteUser = async (req, res) => {
 
 module.exports = {
   createUser,
+  loginUser,
   getUser,
   updateUser,
   deleteUser

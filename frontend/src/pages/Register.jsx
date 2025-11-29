@@ -13,7 +13,11 @@ const Register = () => {
     password: '',
     first_name: '',
     last_name: '',
-    phone_number: ''
+    phone_number: '',
+    street: '',
+    city: '',
+    state: '',
+    zip: ''
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -38,19 +42,17 @@ const Register = () => {
     setLoading(true)
 
     try {
-      // Generate user_id in SSN format if not provided
       const userData = {
-        ...formData,
         first_name: formData.first_name,
         last_name: formData.last_name,
         email: formData.email,
-        phone_number: formData.phone_number || '',
+        password: formData.password,
+        phone_number: formData.phone_number,
         address: {
-          street: '',
-          city: '',
-          state: '',
-          zip: '',
-          country: 'USA'
+          street: formData.street,
+          city: formData.city,
+          state: formData.state,
+          zip: formData.zip
         }
       }
       
@@ -121,7 +123,63 @@ const Register = () => {
               name="phone_number"
               value={formData.phone_number}
               onChange={handleChange}
-              placeholder="Phone number (optional)"
+              placeholder="Phone number"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="street">Street</label>
+            <input
+              type="text"
+              id="street"
+              name="street"
+              value={formData.street}
+              onChange={handleChange}
+              required
+              placeholder="Street address"
+            />
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="city">City</label>
+              <input
+                type="text"
+                id="city"
+                name="city"
+                value={formData.city}
+                onChange={handleChange}
+                required
+                placeholder="City"
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="state">State (e.g. CA)</label>
+              <input
+                type="text"
+                id="state"
+                name="state"
+                value={formData.state}
+                onChange={handleChange}
+                required
+                placeholder="State code"
+                maxLength="2"
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="zip">ZIP Code</label>
+            <input
+              type="text"
+              id="zip"
+              name="zip"
+              value={formData.zip}
+              onChange={handleChange}
+              required
+              placeholder="ZIP (e.g. 94105)"
             />
           </div>
 

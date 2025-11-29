@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
+const bcrypt = require('bcrypt');
 
 const addressSchema = new Schema({
   street: { type: String, required: true, trim: true },
@@ -57,6 +58,12 @@ const userSchema = new Schema({
     trim: true,
     match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email']
   },
+  password: {
+    type: String,
+    required: true,
+    minlength: 6,
+    select: false // Don't include password in queries by default
+  },
   profile_image_url: {
     type: String,
     trim: true
@@ -77,11 +84,38 @@ const userSchema = new Schema({
   timestamps: false
 });
 
-// Pre-save middleware to update updated_at
-userSchema.pre('save', function(next) {
+// Pre-save middleware to hash password and update updated_at
+userSchema.pre('save', async function(next) {
+  // Update updated_at
   this.updated_at = new Date();
-  next();
+  
+  // Hash password if it's been modified
+  if (!this.isModified('password')) {
+    return next();
+  }
+  
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
+
+// Method to compare password
+userSchema.methods.comparePassword = async function(candidatePassword) {
+  // Check if password exists and is a string
+  if (!this.password || typeof this.password !== 'string' || !candidatePassword || typeof candidatePassword !== 'string') {
+    return false;
+  }
+  try {
+    return await bcrypt.compare(candidatePassword, this.password);
+  } catch (error) {
+    console.error('[User Model] Password comparison error:', error);
+    return false;
+  }
+};
 
 // Indexes
 userSchema.index({ user_id: 1 }, { unique: true });

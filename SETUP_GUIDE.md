@@ -1,5 +1,6 @@
 # Kayak Travel Platform - Setup Guide
 
+
 Complete setup guide for running the Kayak travel platform on your local machine.
 
 ## 📋 Table of Contents

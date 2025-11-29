@@ -19,8 +19,6 @@ const ADMIN_ANALYTICS_SERVICE_URL = process.env.ADMIN_ANALYTICS_SERVICE_URL || '
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // Health check
 app.get('/health', (req, res) => {
