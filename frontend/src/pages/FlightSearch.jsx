@@ -1,25 +1,86 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams, Link } from 'react-router-dom'
+import { useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
 import api from '../services/api'
 import './SearchResults.css'
 
 const FlightSearch = () => {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [flights, setFlights] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [sortBy, setSortBy] = useState('price')
 
-  const origin = searchParams.get('origin')
-  const destination = searchParams.get('destination')
-  const date = searchParams.get('date')
-  const passengers = searchParams.get('passengers') || 1
-  const flightClass = searchParams.get('flightClass') || 'economy'
+  const originParam = searchParams.get('origin')
+  const destinationParam = searchParams.get('destination')
+  const dateParam = searchParams.get('date')
+  const passengersParam = searchParams.get('passengers') || 1
+  const flightClassParam = searchParams.get('flightClass') || 'economy'
+  const returnDateParam = searchParams.get('returnDate')
+
+  // Search form state
+  const [searchForm, setSearchForm] = useState({
+    origin: originParam || '',
+    destination: destinationParam || '',
+    date: dateParam ? new Date(dateParam) : null,
+    returnDate: returnDateParam ? new Date(returnDateParam) : null,
+    passengers: parseInt(passengersParam) || 1,
+    flightClass: flightClassParam || 'economy',
+    isRoundTrip: !!returnDateParam
+  })
+
+  const origin = originParam
+  const destination = destinationParam
+  const date = dateParam
+  const passengers = passengersParam
+  const flightClass = flightClassParam
 
   useEffect(() => {
     fetchFlights()
   }, [searchParams])
+
+  useEffect(() => {
+    // Update form when URL params change
+    setSearchForm({
+      origin: originParam || '',
+      destination: destinationParam || '',
+      date: dateParam ? new Date(dateParam) : null,
+      returnDate: returnDateParam ? new Date(returnDateParam) : null,
+      passengers: parseInt(passengersParam) || 1,
+      flightClass: flightClassParam || 'economy',
+      isRoundTrip: !!returnDateParam
+    })
+  }, [originParam, destinationParam, dateParam, returnDateParam, passengersParam, flightClassParam])
+
+  const handleSearchChange = (field, value) => {
+    setSearchForm(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault()
+    const params = new URLSearchParams({
+      origin: searchForm.origin,
+      destination: searchForm.destination,
+      passengers: searchForm.passengers,
+      flightClass: searchForm.flightClass
+    })
+    
+    if (searchForm.date) {
+      params.append('date', searchForm.date.toISOString().split('T')[0])
+    }
+    
+    if (searchForm.isRoundTrip && searchForm.returnDate) {
+      params.append('returnDate', searchForm.returnDate.toISOString().split('T')[0])
+    }
+    
+    navigate(`/flights?${params.toString()}`)
+  }
 
   const fetchFlights = async () => {
     try {
@@ -129,6 +190,89 @@ const FlightSearch = () => {
   return (
     <div className="search-results">
       <div className="container">
+        <div className="search-form-section">
+          <h2>Modify Your Search</h2>
+          <form onSubmit={handleSearchSubmit} className="inline-search-form">
+            <div className="search-form-row">
+              <div className="search-form-group">
+                <label>From</label>
+                <input
+                  type="text"
+                  placeholder="City (e.g., New York) or Airport (e.g., JFK)"
+                  value={searchForm.origin}
+                  onChange={(e) => handleSearchChange('origin', e.target.value)}
+                  required
+                />
+              </div>
+              <div className="search-form-group">
+                <label>To</label>
+                <input
+                  type="text"
+                  placeholder="City (e.g., Los Angeles) or Airport (e.g., LAX)"
+                  value={searchForm.destination}
+                  onChange={(e) => handleSearchChange('destination', e.target.value)}
+                  required
+                />
+              </div>
+              <div className="search-form-group">
+                <label>Depart</label>
+                <DatePicker
+                  selected={searchForm.date}
+                  onChange={(date) => handleSearchChange('date', date)}
+                  minDate={new Date()}
+                  placeholderText="Select date"
+                  dateFormat="MMM dd, yyyy"
+                />
+              </div>
+              {searchForm.isRoundTrip && (
+                <div className="search-form-group">
+                  <label>Return</label>
+                  <DatePicker
+                    selected={searchForm.returnDate}
+                    onChange={(date) => handleSearchChange('returnDate', date)}
+                    minDate={searchForm.date || new Date()}
+                    placeholderText="Select date"
+                    dateFormat="MMM dd, yyyy"
+                  />
+                </div>
+              )}
+              <div className="search-form-group">
+                <label>Passengers</label>
+                <select
+                  value={searchForm.passengers}
+                  onChange={(e) => handleSearchChange('passengers', parseInt(e.target.value))}
+                >
+                  {[1, 2, 3, 4, 5, 6].map(num => (
+                    <option key={num} value={num}>{num}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="search-form-group">
+                <label>Class</label>
+                <select
+                  value={searchForm.flightClass}
+                  onChange={(e) => handleSearchChange('flightClass', e.target.value)}
+                >
+                  <option value="economy">Economy</option>
+                  <option value="business">Business</option>
+                  <option value="first">First</option>
+                </select>
+              </div>
+            </div>
+            <div className="search-form-options">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={searchForm.isRoundTrip}
+                  onChange={(e) => handleSearchChange('isRoundTrip', e.target.checked)}
+                />
+                <span>Round trip</span>
+              </label>
+              <button type="submit" className="btn-search-inline">Update Search</button>
+            </div>
+          </form>
+        </div>
+
         <div className="results-header">
           <h1>Flights from {origin} to {destination}</h1>
           {date && <p>{formatDate(date)} • {passengers} {passengers === 1 ? 'passenger' : 'passengers'}</p>}

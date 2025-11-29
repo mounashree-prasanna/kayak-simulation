@@ -1,14 +1,17 @@
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
-const Flight = require('../models/Flight');
-const Hotel = require('../models/Hotel');
-const CarRental = require('../models/CarRental');
+const path = require('path');
 
 // Load env vars
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
+// Import models from listing-service
+const Flight = require('../services/listing-service/src/models/Flight');
+const Hotel = require('../services/listing-service/src/models/Hotel');
+const Car = require('../services/listing-service/src/models/Car');
 
 // Connect to database
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/kayak_db');
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/kayak_db';
 
 const seedFlights = async () => {
   try {
@@ -16,121 +19,90 @@ const seedFlights = async () => {
     
     const flights = [
       {
-        airline: 'American Airlines',
-        flightNumber: 'AA100',
-        departure: {
-          airport: 'JFK',
-          airportName: 'John F. Kennedy International Airport',
-          city: 'New York',
-          country: 'USA',
-          dateTime: new Date('2024-02-01T08:00:00Z')
-        },
-        arrival: {
-          airport: 'LAX',
-          airportName: 'Los Angeles International Airport',
-          city: 'Los Angeles',
-          country: 'USA',
-          dateTime: new Date('2024-02-01T11:30:00Z')
-        },
-        aircraft: {
-          type: 'Boeing 737',
-          model: '737-800'
-        },
-        duration: 330, // 5.5 hours
-        stops: 0,
-        class: {
-          economy: {
-            available: true,
-            price: 350,
-            seatsAvailable: 50
-          },
-          business: {
-            available: true,
-            price: 1200,
-            seatsAvailable: 10
-          },
-          first: {
-            available: true,
-            price: 2500,
-            seatsAvailable: 4
-          }
-        },
-        baggage: {
-          carryOn: {
-            included: true,
-            maxWeight: 7,
-            maxDimensions: '55x40x20cm'
-          },
-          checked: {
-            included: false,
-            maxWeight: 23,
-            maxPieces: 1
-          }
-        },
-        amenities: ['WiFi', 'Entertainment', 'Meals'],
-        available: true
+        flight_id: 'AA100',
+        airline_name: 'American Airlines',
+        departure_airport: 'JFK',
+        arrival_airport: 'LAX',
+        departure_datetime: new Date('2024-12-20T08:00:00Z'),
+        arrival_datetime: new Date('2024-12-20T11:30:00Z'),
+        duration_minutes: 330,
+        flight_class: 'Economy',
+        ticket_price: 350,
+        total_available_seats: 50,
+        rating: 4.5
       },
       {
-        airline: 'Delta Airlines',
-        flightNumber: 'DL200',
-        departure: {
-          airport: 'LAX',
-          airportName: 'Los Angeles International Airport',
-          city: 'Los Angeles',
-          country: 'USA',
-          dateTime: new Date('2024-02-01T14:00:00Z')
-        },
-        arrival: {
-          airport: 'JFK',
-          airportName: 'John F. Kennedy International Airport',
-          city: 'New York',
-          country: 'USA',
-          dateTime: new Date('2024-02-01T22:30:00Z')
-        },
-        aircraft: {
-          type: 'Airbus A320',
-          model: 'A320neo'
-        },
-        duration: 330,
-        stops: 0,
-        class: {
-          economy: {
-            available: true,
-            price: 380,
-            seatsAvailable: 45
-          },
-          business: {
-            available: true,
-            price: 1350,
-            seatsAvailable: 8
-          },
-          first: {
-            available: false,
-            price: 0,
-            seatsAvailable: 0
-          }
-        },
-        baggage: {
-          carryOn: {
-            included: true,
-            maxWeight: 7,
-            maxDimensions: '55x40x20cm'
-          },
-          checked: {
-            included: true,
-            maxWeight: 23,
-            maxPieces: 1
-          }
-        },
-        amenities: ['WiFi', 'Entertainment', 'Snacks'],
-        available: true
+        flight_id: 'AA101',
+        airline_name: 'American Airlines',
+        departure_airport: 'JFK',
+        arrival_airport: 'LAX',
+        departure_datetime: new Date('2024-12-20T14:00:00Z'),
+        arrival_datetime: new Date('2024-12-20T17:30:00Z'),
+        duration_minutes: 330,
+        flight_class: 'Business',
+        ticket_price: 1200,
+        total_available_seats: 10,
+        rating: 4.8
+      },
+      {
+        flight_id: 'DL200',
+        airline_name: 'Delta Airlines',
+        departure_airport: 'LAX',
+        arrival_airport: 'JFK',
+        departure_datetime: new Date('2024-12-20T09:00:00Z'),
+        arrival_datetime: new Date('2024-12-20T17:30:00Z'),
+        duration_minutes: 510,
+        flight_class: 'Economy',
+        ticket_price: 380,
+        total_available_seats: 45,
+        rating: 4.6
+      },
+      {
+        flight_id: 'UA300',
+        airline_name: 'United Airlines',
+        departure_airport: 'SFO',
+        arrival_airport: 'NYC',
+        departure_datetime: new Date('2024-12-21T06:00:00Z'),
+        arrival_datetime: new Date('2024-12-21T14:30:00Z'),
+        duration_minutes: 510,
+        flight_class: 'Economy',
+        ticket_price: 420,
+        total_available_seats: 60,
+        rating: 4.4
+      },
+      {
+        flight_id: 'SW400',
+        airline_name: 'Southwest Airlines',
+        departure_airport: 'DEN',
+        arrival_airport: 'SEA',
+        departure_datetime: new Date('2024-12-22T10:00:00Z'),
+        arrival_datetime: new Date('2024-12-22T12:15:00Z'),
+        duration_minutes: 135,
+        flight_class: 'Economy',
+        ticket_price: 250,
+        total_available_seats: 75,
+        rating: 4.3
+      },
+      {
+        flight_id: 'JB500',
+        airline_name: 'JetBlue',
+        departure_airport: 'BOS',
+        arrival_airport: 'MIA',
+        departure_datetime: new Date('2024-12-23T07:30:00Z'),
+        arrival_datetime: new Date('2024-12-23T10:45:00Z'),
+        duration_minutes: 195,
+        flight_class: 'Economy',
+        ticket_price: 280,
+        total_available_seats: 55,
+        rating: 4.5
       }
     ];
 
     await Flight.insertMany(flights);
-    console.log('✅ Flights seeded successfully');
+    console.log(`✅ ${flights.length} flights seeded successfully`);
   } catch (error) {
     console.error('❌ Error seeding flights:', error);
+    throw error;
   }
 };
 
@@ -140,303 +112,298 @@ const seedHotels = async () => {
     
     const hotels = [
       {
+        hotel_id: 'HOTEL001',
         name: 'Grand Plaza Hotel',
-        description: 'Luxurious hotel in the heart of New York City',
         address: {
           street: '123 Broadway',
           city: 'New York',
           state: 'NY',
-          zipCode: '10001',
-          country: 'USA',
-          coordinates: {
-            latitude: 40.7128,
-            longitude: -74.0060
-          }
+          zip: '10001'
         },
-        starRating: 5,
-        amenities: ['WiFi', 'Pool', 'Gym', 'Spa', 'Restaurant', 'Parking'],
-        roomTypes: [
-          {
-            type: 'Standard',
-            description: 'Comfortable standard room with city view',
-            maxOccupancy: 2,
-            beds: {
-              type: '1 Queen',
-              count: 1
-            },
-            amenities: ['WiFi', 'TV', 'AC', 'Mini Bar'],
-            pricing: {
-              basePrice: 150,
-              currency: 'USD',
-              pricePerNight: true
-            },
-            availability: {
-              available: true,
-              roomsAvailable: 10,
-              checkIn: new Date('2024-02-01'),
-              checkOut: new Date('2024-02-05')
-            },
-            images: []
-          },
-          {
-            type: 'Deluxe',
-            description: 'Spacious deluxe room with premium amenities',
-            maxOccupancy: 3,
-            beds: {
-              type: '1 King',
-              count: 1
-            },
-            amenities: ['WiFi', 'TV', 'AC', 'Mini Bar', 'Balcony'],
-            pricing: {
-              basePrice: 220,
-              currency: 'USD',
-              pricePerNight: true
-            },
-            availability: {
-              available: true,
-              roomsAvailable: 5,
-              checkIn: new Date('2024-02-01'),
-              checkOut: new Date('2024-02-05')
-            },
-            images: []
-          }
-        ],
-        policies: {
-          checkIn: '3:00 PM',
-          checkOut: '11:00 AM',
-          cancellation: 'Free cancellation until 24 hours before check-in',
-          petFriendly: false,
-          smokingAllowed: false
+        star_rating: 5,
+        number_of_rooms: 150,
+        default_room_type: 'Deluxe',
+        price_per_night: 250,
+        amenities: {
+          wifi: true,
+          breakfast_included: true,
+          parking: true,
+          pet_friendly: false,
+          near_transit: true,
+          pool: true,
+          gym: true
         },
-        images: [],
-        reviews: {
-          averageRating: 4.5,
-          totalReviews: 125
-        },
-        contact: {
-          phone: '+1-212-555-0100',
-          email: 'info@grandplaza.com',
-          website: 'www.grandplaza.com'
-        }
+        hotel_rating: 4.5
       },
       {
+        hotel_id: 'HOTEL002',
         name: 'Sunset Beach Resort',
-        description: 'Beachfront resort in Los Angeles',
         address: {
           street: '456 Ocean Drive',
           city: 'Los Angeles',
           state: 'CA',
-          zipCode: '90210',
-          country: 'USA',
-          coordinates: {
-            latitude: 34.0522,
-            longitude: -118.2437
-          }
+          zip: '90210'
         },
-        starRating: 4,
-        amenities: ['WiFi', 'Pool', 'Gym', 'Beach Access', 'Restaurant', 'Bar'],
-        roomTypes: [
-          {
-            type: 'Ocean View',
-            description: 'Beautiful room with ocean view',
-            maxOccupancy: 2,
-            beds: {
-              type: '2 Double',
-              count: 2
-            },
-            amenities: ['WiFi', 'TV', 'AC', 'Balcony'],
-            pricing: {
-              basePrice: 180,
-              currency: 'USD',
-              pricePerNight: true
-            },
-            availability: {
-              available: true,
-              roomsAvailable: 8,
-              checkIn: new Date('2024-02-01'),
-              checkOut: new Date('2024-02-05')
-            },
-            images: []
-          }
-        ],
-        policies: {
-          checkIn: '4:00 PM',
-          checkOut: '11:00 AM',
-          cancellation: 'Free cancellation until 48 hours before check-in',
-          petFriendly: true,
-          smokingAllowed: false
+        star_rating: 4,
+        number_of_rooms: 100,
+        default_room_type: 'Ocean View',
+        price_per_night: 180,
+        amenities: {
+          wifi: true,
+          breakfast_included: false,
+          parking: true,
+          pet_friendly: true,
+          near_transit: false,
+          pool: true,
+          gym: true
         },
-        images: [],
-        reviews: {
-          averageRating: 4.2,
-          totalReviews: 89
+        hotel_rating: 4.2
+      },
+      {
+        hotel_id: 'HOTEL003',
+        name: 'Downtown Business Hotel',
+        address: {
+          street: '789 Market Street',
+          city: 'San Francisco',
+          state: 'CA',
+          zip: '94102'
         },
-        contact: {
-          phone: '+1-310-555-0200',
-          email: 'info@sunsetbeach.com',
-          website: 'www.sunsetbeach.com'
-        }
+        star_rating: 4,
+        number_of_rooms: 200,
+        default_room_type: 'Standard',
+        price_per_night: 220,
+        amenities: {
+          wifi: true,
+          breakfast_included: true,
+          parking: false,
+          pet_friendly: false,
+          near_transit: true,
+          pool: false,
+          gym: true
+        },
+        hotel_rating: 4.3
+      },
+      {
+        hotel_id: 'HOTEL004',
+        name: 'Mountain View Lodge',
+        address: {
+          street: '321 Alpine Road',
+          city: 'Denver',
+          state: 'CO',
+          zip: '80202'
+        },
+        star_rating: 3,
+        number_of_rooms: 80,
+        default_room_type: 'Standard',
+        price_per_night: 120,
+        amenities: {
+          wifi: true,
+          breakfast_included: true,
+          parking: true,
+          pet_friendly: true,
+          near_transit: false,
+          pool: false,
+          gym: false
+        },
+        hotel_rating: 4.0
+      },
+      {
+        hotel_id: 'HOTEL005',
+        name: 'Seaside Inn',
+        address: {
+          street: '555 Harbor Way',
+          city: 'Seattle',
+          state: 'WA',
+          zip: '98101'
+        },
+        star_rating: 3,
+        number_of_rooms: 60,
+        default_room_type: 'Standard',
+        price_per_night: 150,
+        amenities: {
+          wifi: true,
+          breakfast_included: false,
+          parking: true,
+          pet_friendly: false,
+          near_transit: true,
+          pool: false,
+          gym: false
+        },
+        hotel_rating: 3.8
+      },
+      {
+        hotel_id: 'HOTEL006',
+        name: 'Tropical Paradise Resort',
+        address: {
+          street: '888 Beach Boulevard',
+          city: 'Miami',
+          state: 'FL',
+          zip: '33139'
+        },
+        star_rating: 5,
+        number_of_rooms: 120,
+        default_room_type: 'Suite',
+        price_per_night: 320,
+        amenities: {
+          wifi: true,
+          breakfast_included: true,
+          parking: true,
+          pet_friendly: true,
+          near_transit: false,
+          pool: true,
+          gym: true
+        },
+        hotel_rating: 4.7
       }
     ];
 
     await Hotel.insertMany(hotels);
-    console.log('✅ Hotels seeded successfully');
+    console.log(`✅ ${hotels.length} hotels seeded successfully`);
   } catch (error) {
     console.error('❌ Error seeding hotels:', error);
+    throw error;
   }
 };
 
-const seedCarRentals = async () => {
+const seedCars = async () => {
   try {
-    await CarRental.deleteMany();
+    await Car.deleteMany();
     
-    const carRentals = [
+    const cars = [
       {
-        company: 'Hertz',
-        vehicle: {
-          make: 'Toyota',
-          model: 'Camry',
-          year: 2023,
-          type: 'Mid-Size',
-          category: 'Standard',
-          seats: 5,
-          doors: 4,
-          transmission: 'Automatic',
-          fuelType: 'Gasoline',
-          mileage: 'Unlimited',
-          features: ['GPS', 'Bluetooth', 'USB', 'Backup Camera']
-        },
-        location: {
-          pickup: {
-            address: '123 Airport Blvd',
-            city: 'Los Angeles',
-            state: 'CA',
-            country: 'USA',
-            coordinates: {
-              latitude: 34.0522,
-              longitude: -118.2437
-            }
-          },
-          dropoff: {
-            address: '123 Airport Blvd',
-            city: 'Los Angeles',
-            state: 'CA',
-            country: 'USA'
-          },
-          sameLocation: true
-        },
-        availability: {
-          available: true,
-          pickupDate: new Date('2024-02-01'),
-          dropoffDate: new Date('2024-02-05'),
-          unitsAvailable: 5
-        },
-        pricing: {
-          basePrice: 45,
-          currency: 'USD',
-          pricePerDay: 45,
-          totalDays: 4,
-          taxes: 18,
-          fees: {
-            insurance: 15,
-            additionalDriver: 0,
-            youngDriver: 0,
-            airportFee: 10
-          },
-          totalPrice: 208
-        },
-        requirements: {
-          minAge: 21,
-          drivingLicense: true,
-          creditCard: true,
-          deposit: 200
-        },
-        images: []
+        car_id: 'CAR001',
+        car_type: 'Sedan',
+        provider_name: 'Hertz',
+        model: 'Toyota Camry',
+        year: 2023,
+        transmission_type: 'Automatic',
+        number_of_seats: 5,
+        daily_rental_price: 45,
+        car_rating: 4.5,
+        availability_status: 'Available',
+        pickup_city: 'Los Angeles'
       },
       {
-        company: 'Enterprise',
-        vehicle: {
-          make: 'Ford',
-          model: 'Explorer',
-          year: 2023,
-          type: 'SUV',
-          category: 'Premium',
-          seats: 7,
-          doors: 5,
-          transmission: 'Automatic',
-          fuelType: 'Gasoline',
-          mileage: 'Unlimited',
-          features: ['GPS', 'Bluetooth', 'USB', 'Third Row Seating', 'AWD']
-        },
-        location: {
-          pickup: {
-            address: '456 Rental Way',
-            city: 'New York',
-            state: 'NY',
-            country: 'USA',
-            coordinates: {
-              latitude: 40.7128,
-              longitude: -74.0060
-            }
-          },
-          dropoff: {
-            address: '456 Rental Way',
-            city: 'New York',
-            state: 'NY',
-            country: 'USA'
-          },
-          sameLocation: true
-        },
-        availability: {
-          available: true,
-          pickupDate: new Date('2024-02-01'),
-          dropoffDate: new Date('2024-02-05'),
-          unitsAvailable: 3
-        },
-        pricing: {
-          basePrice: 75,
-          currency: 'USD',
-          pricePerDay: 75,
-          totalDays: 4,
-          taxes: 30,
-          fees: {
-            insurance: 20,
-            additionalDriver: 0,
-            youngDriver: 0,
-            airportFee: 0
-          },
-          totalPrice: 350
-        },
-        requirements: {
-          minAge: 25,
-          drivingLicense: true,
-          creditCard: true,
-          deposit: 300
-        },
-        images: []
+        car_id: 'CAR002',
+        car_type: 'SUV',
+        provider_name: 'Enterprise',
+        model: 'Ford Explorer',
+        year: 2023,
+        transmission_type: 'Automatic',
+        number_of_seats: 7,
+        daily_rental_price: 75,
+        car_rating: 4.6,
+        availability_status: 'Available',
+        pickup_city: 'New York'
+      },
+      {
+        car_id: 'CAR003',
+        car_type: 'Compact',
+        provider_name: 'Avis',
+        model: 'Honda Civic',
+        year: 2024,
+        transmission_type: 'Automatic',
+        number_of_seats: 5,
+        daily_rental_price: 35,
+        car_rating: 4.4,
+        availability_status: 'Available',
+        pickup_city: 'San Francisco'
+      },
+      {
+        car_id: 'CAR004',
+        car_type: 'Luxury',
+        provider_name: 'Budget',
+        model: 'BMW 5 Series',
+        year: 2023,
+        transmission_type: 'Automatic',
+        number_of_seats: 5,
+        daily_rental_price: 120,
+        car_rating: 4.8,
+        availability_status: 'Available',
+        pickup_city: 'Los Angeles'
+      },
+      {
+        car_id: 'CAR005',
+        car_type: 'SUV',
+        provider_name: 'National',
+        model: 'Jeep Grand Cherokee',
+        year: 2023,
+        transmission_type: 'Automatic',
+        number_of_seats: 5,
+        daily_rental_price: 65,
+        car_rating: 4.5,
+        availability_status: 'Available',
+        pickup_city: 'Denver'
+      },
+      {
+        car_id: 'CAR006',
+        car_type: 'Convertible',
+        provider_name: 'Alamo',
+        model: 'Ford Mustang',
+        year: 2024,
+        transmission_type: 'Automatic',
+        number_of_seats: 4,
+        daily_rental_price: 85,
+        car_rating: 4.7,
+        availability_status: 'Available',
+        pickup_city: 'Miami'
+      },
+      {
+        car_id: 'CAR007',
+        car_type: 'Sedan',
+        provider_name: 'Thrifty',
+        model: 'Nissan Altima',
+        year: 2023,
+        transmission_type: 'Automatic',
+        number_of_seats: 5,
+        daily_rental_price: 40,
+        car_rating: 4.3,
+        availability_status: 'Available',
+        pickup_city: 'Seattle'
+      },
+      {
+        car_id: 'CAR008',
+        car_type: 'Minivan',
+        provider_name: 'Dollar',
+        model: 'Chrysler Pacifica',
+        year: 2023,
+        transmission_type: 'Automatic',
+        number_of_seats: 7,
+        daily_rental_price: 70,
+        car_rating: 4.4,
+        availability_status: 'Available',
+        pickup_city: 'Boston'
       }
     ];
 
-    await CarRental.insertMany(carRentals);
-    console.log('✅ Car rentals seeded successfully');
+    await Car.insertMany(cars);
+    console.log(`✅ ${cars.length} cars seeded successfully`);
   } catch (error) {
-    console.error('❌ Error seeding car rentals:', error);
+    console.error('❌ Error seeding cars:', error);
+    throw error;
   }
 };
 
 const seedAll = async () => {
   try {
+    console.log('🌱 Starting data seeding...\n');
+    
+    await mongoose.connect(MONGODB_URI);
+    console.log(`✅ Connected to MongoDB: ${MONGODB_URI}\n`);
+
     await seedFlights();
     await seedHotels();
-    await seedCarRentals();
+    await seedCars();
+    
     console.log('\n✅ All data seeded successfully!');
+    await mongoose.connection.close();
     process.exit(0);
   } catch (error) {
     console.error('❌ Error seeding data:', error);
+    await mongoose.connection.close();
     process.exit(1);
   }
 };
 
 // Run seeder
 seedAll();
-

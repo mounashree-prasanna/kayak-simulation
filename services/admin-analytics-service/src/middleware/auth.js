@@ -1,18 +1,98 @@
-const ADMIN_API_KEY = process.env.ADMIN_API_KEY || 'admin-super-secret-key-change-in-production';
+const { verifyAccessToken } = require('../utils/jwt');
+const { hasPermission } = require('../controllers/adminController');
 
-const adminAuth = (req, res, next) => {
-  const apiKey = req.headers['x-api-key'] || (req.headers['authorization'] ? req.headers['authorization'].replace('Bearer ', '') : null);
+/**
+ * Middleware to verify access token
+ * Adds admin info to req.admin if token is valid
+ */
+const authenticate = async (req, res, next) => {
+  try {
+    // Get token from Authorization header
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        error: 'No token provided. Authorization header must be in format: Bearer <token>'
+      });
+    }
 
-  if (!apiKey || apiKey !== ADMIN_API_KEY) {
-    res.status(401).json({
+    const token = authHeader.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        error: 'No token provided'
+      });
+    }
+
+    // Verify token
+    const decoded = verifyAccessToken(token);
+    
+    // Check if it's an admin token
+    if (decoded.type !== 'admin' && !decoded.admin_id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Admin access required'
+      });
+    }
+
+    // Add admin info to request
+    req.admin = {
+      admin_id: decoded.admin_id,
+      email: decoded.email,
+      role: decoded.role
+    };
+
+    next();
+  } catch (error) {
+    return res.status(401).json({
       success: false,
-      error: 'Unauthorized. Valid API key required.'
+      error: error.message || 'Invalid or expired token'
     });
-    return;
   }
+};
 
+/**
+ * Middleware to check if user is admin
+ */
+const requireAdmin = (req, res, next) => {
+  if (!req.admin) {
+    return res.status(403).json({
+      success: false,
+      error: 'Admin access required'
+    });
+  }
   next();
 };
 
-module.exports = { adminAuth };
+/**
+ * Middleware to check admin permissions
+ * @param {String} permission - Required permission
+ */
+const requirePermission = (permission) => {
+  return (req, res, next) => {
+    if (!req.admin) {
+      return res.status(403).json({
+        success: false,
+        error: 'Admin access required'
+      });
+    }
+
+    if (!hasPermission(req.admin.role, permission)) {
+      return res.status(403).json({
+        success: false,
+        error: `Insufficient permissions. Required: ${permission}`
+      });
+    }
+
+    next();
+  };
+};
+
+module.exports = {
+  authenticate,
+  requireAdmin,
+  requirePermission
+};
 

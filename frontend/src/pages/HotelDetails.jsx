@@ -9,6 +9,7 @@ const HotelDetails = () => {
   const navigate = useNavigate()
   const { isAuthenticated } = useAppSelector(state => state.auth)
   const [hotel, setHotel] = useState(null)
+  const [hotelImages, setHotelImages] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -20,7 +21,32 @@ const HotelDetails = () => {
     try {
       setLoading(true)
       const response = await api.get(`/hotels/${id}`)
-      setHotel(response.data.data)
+      const hotelData = response.data.data
+      setHotel(hotelData)
+      
+      // Fetch images for the hotel - try both hotel_id and _id
+      try {
+        const hotelId = hotelData.hotel_id || id
+        const imageResponse = await api.get('/images', {
+          params: { entity_type: 'Hotel', entity_id: String(hotelId) }
+        })
+        if (imageResponse.data.success && imageResponse.data.data) {
+          setHotelImages(imageResponse.data.data.map(img => img.image_url))
+        }
+      } catch (imgErr) {
+        // Try with _id if hotel_id didn't work
+        try {
+          const imageResponse = await api.get('/images', {
+            params: { entity_type: 'Hotel', entity_id: String(id) }
+          })
+          if (imageResponse.data.success && imageResponse.data.data) {
+            setHotelImages(imageResponse.data.data.map(img => img.image_url))
+          }
+        } catch (imgErr2) {
+          console.log('No images found for hotel')
+        }
+      }
+      
       setError(null)
     } catch (err) {
       if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
@@ -68,7 +94,7 @@ const HotelDetails = () => {
         
         <div className="details-header">
           <div>
-            <h1>{hotel.hotel_name}</h1>
+            <h1>{hotel.name || hotel.hotel_name}</h1>
             <div className="hotel-meta">
               <span className="stars">{'★'.repeat(hotel.star_rating)}</span>
               <span className="rating">Rating: {hotel.hotel_rating?.toFixed(1) || 'N/A'}</span>
@@ -86,7 +112,11 @@ const HotelDetails = () => {
         <div className="details-content">
           <div className="details-main">
             <div className="hotel-image-large">
-              <div className="image-placeholder-large">🏨</div>
+              {hotelImages.length > 0 ? (
+                <img src={hotelImages[0]} alt={hotel.name || hotel.hotel_name} />
+              ) : (
+                <div className="image-placeholder-large">🏨</div>
+              )}
             </div>
 
             <div className="details-section">

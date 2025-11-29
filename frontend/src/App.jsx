@@ -21,12 +21,23 @@ import Dashboard from './pages/Dashboard'
 import MyBookings from './pages/MyBookings'
 import BookingDetails from './pages/BookingDetails'
 import NotificationCenter from './components/NotificationCenter/NotificationCenter'
+import AdminDashboard from './pages/admin/AdminDashboard'
+import AdminListingManagement from './pages/admin/AdminListingManagement'
+import AdminUserManagement from './pages/admin/AdminUserManagement'
+import AdminBilling from './pages/admin/AdminBilling'
+import AdminAnalytics from './pages/admin/AdminAnalytics'
 
 function App() {
   useEffect(() => {
     // Initialize user on app load
-    const token = localStorage.getItem('token')
-    if (token) {
+    const accessToken = localStorage.getItem('accessToken')
+    const refreshToken = localStorage.getItem('refreshToken')
+    const oldToken = localStorage.getItem('token') // For backward compatibility
+    
+    if (accessToken && refreshToken) {
+      store.dispatch(fetchUser())
+    } else if (oldToken) {
+      // Migrate from old token format
       store.dispatch(fetchUser())
     }
 
@@ -66,6 +77,11 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/my-bookings" element={<MyBookings />} />
             <Route path="/booking-details/:id" element={<BookingDetails />} />
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/listings" element={<AdminListingManagement />} />
+            <Route path="/admin/users" element={<AdminUserManagement />} />
+            <Route path="/admin/billing" element={<AdminBilling />} />
+            <Route path="/admin/analytics" element={<AdminAnalytics />} />
           </Routes>
           <NotificationCenter />
         </Layout>

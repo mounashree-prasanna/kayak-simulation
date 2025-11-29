@@ -8,7 +8,7 @@ const Login = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const dispatch = useAppDispatch()
-  const { isAuthenticated, loading: authLoading } = useAppSelector(state => state.auth)
+  const { isAuthenticated, loading: authLoading, role } = useAppSelector(state => state.auth)
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -18,10 +18,16 @@ const Login = () => {
 
   useEffect(() => {
     if (isAuthenticated) {
-      const redirect = searchParams.get('redirect') || '/dashboard'
-      navigate(redirect)
+      const redirect = searchParams.get('redirect')
+      if (redirect) {
+        navigate(redirect)
+      } else if (role === 'admin') {
+        navigate('/admin/dashboard')
+      } else {
+        navigate('/dashboard')
+      }
     }
-  }, [isAuthenticated, navigate, searchParams])
+  }, [isAuthenticated, role, navigate, searchParams])
 
   const handleChange = (e) => {
     setFormData({
@@ -42,8 +48,15 @@ const Login = () => {
         password: formData.password 
       })).unwrap()
       
-      const redirect = searchParams.get('redirect') || '/dashboard'
-      navigate(redirect)
+      // Redirect based on role
+      const redirect = searchParams.get('redirect')
+      if (redirect) {
+        navigate(redirect)
+      } else if (result.role === 'admin') {
+        navigate('/admin/dashboard')
+      } else {
+        navigate('/dashboard')
+      }
     } catch (err) {
       setError(err || 'Login failed. Please check your credentials.')
     } finally {

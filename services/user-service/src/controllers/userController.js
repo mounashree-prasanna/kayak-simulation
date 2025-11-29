@@ -1,6 +1,8 @@
 const User = require('../models/User');
+const Admin = require('../models/Admin');
 const { publishUserEvent } = require('../config/kafka');
 const { validateSSN, validateState, validateZip, validateEmail } = require('../utils/validation');
+const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
 
 const loginUser = async (req, res) => {
   try {
@@ -17,7 +19,70 @@ const loginUser = async (req, res) => {
       return;
     }
 
-    // Find user by email and include password
+    // First check if it's an admin
+    let admin = await Admin.findOne({ email: email.toLowerCase() }).select('+password');
+    
+    if (admin) {
+      // Admin login
+      console.log('[User Service] Admin found, attempting admin login');
+      
+      if (!admin.password || typeof admin.password !== 'string' || admin.password.trim() === '') {
+        res.status(401).json({
+          success: false,
+          error: 'Invalid email or password'
+        });
+        return;
+      }
+
+      const isPasswordValid = await admin.comparePassword(password);
+      
+      if (!isPasswordValid) {
+        res.status(401).json({
+          success: false,
+          error: 'Invalid email or password'
+        });
+        return;
+      }
+
+      // Generate JWT tokens for admin
+      const accessToken = generateAccessToken({
+        admin_id: admin.admin_id,
+        email: admin.email,
+        role: admin.role,
+        type: 'admin'
+      });
+      
+      const refreshToken = generateRefreshToken({
+        admin_id: admin.admin_id,
+        email: admin.email,
+        role: admin.role,
+        type: 'admin'
+      });
+
+      // Store refresh token in database
+      admin.refresh_token = refreshToken;
+      await admin.save();
+
+      // Remove password and refresh_token from response
+      const adminObj = admin.toObject();
+      delete adminObj.password;
+      delete adminObj.refresh_token;
+
+      console.log('[User Service] Admin login successful:', admin.email);
+      res.status(200).json({
+        success: true,
+        data: {
+          admin: adminObj,
+          accessToken,
+          refreshToken,
+          role: 'admin',
+          userRole: admin.role
+        }
+      });
+      return;
+    }
+
+    // Regular user login
     const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
     console.log('[User Service] User found:', user ? 'Yes' : 'No');
 
@@ -30,7 +95,7 @@ const loginUser = async (req, res) => {
       return;
     }
 
-    // Check if user has a password set (for users created before password support)
+    // Check if user has a password set
     if (!user.password || typeof user.password !== 'string' || user.password.trim() === '') {
       console.log('[User Service] User has no password set');
       res.status(401).json({
@@ -41,7 +106,6 @@ const loginUser = async (req, res) => {
     }
 
     console.log('[User Service] Comparing password...');
-    // Compare password - this method has internal error handling
     const isPasswordValid = await user.comparePassword(password);
     console.log('[User Service] Password valid:', isPasswordValid);
 
@@ -54,17 +118,36 @@ const loginUser = async (req, res) => {
       return;
     }
 
-    // Remove password from response
+    // Generate JWT tokens
+    const accessToken = generateAccessToken({
+      user_id: user.user_id,
+      email: user.email,
+      type: 'user'
+    });
+    
+    const refreshToken = generateRefreshToken({
+      user_id: user.user_id,
+      email: user.email,
+      type: 'user'
+    });
+
+    // Store refresh token in database
+    user.refresh_token = refreshToken;
+    await user.save();
+
+    // Remove password and refresh_token from response
     const userObj = user.toObject();
     delete userObj.password;
+    delete userObj.refresh_token;
 
     console.log('[User Service] Login successful for user:', user.email);
-    // Return user data (token would be generated here in production with JWT)
     res.status(200).json({
       success: true,
       data: {
         user: userObj,
-        token: user.user_id // Using user_id as token for now (in production, use JWT)
+        accessToken,
+        refreshToken,
+        role: 'user'
       }
     });
   } catch (error) {
@@ -77,8 +160,10 @@ const loginUser = async (req, res) => {
 };
 
 const createUser = async (req, res) => {
+  console.log('[User Service] createUser endpoint called');
   try {
     const { user_id, first_name, last_name, address, phone_number, email, password, profile_image_url, payment_details } = req.body;
+    console.log('[User Service] Received user data for:', email);
 
     // Validation
     if (!validateSSN(user_id)) {
@@ -133,10 +218,37 @@ const createUser = async (req, res) => {
     }
 
     // Validate password
-    if (!password || password.length < 6) {
+    if (!password || password.length < 8) {
       res.status(400).json({
         success: false,
-        error: 'Password is required and must be at least 6 characters long'
+        error: 'Password must be at least 8 characters long'
+      });
+      return;
+    }
+
+    // Check for uppercase letter
+    if (!/[A-Z]/.test(password)) {
+      res.status(400).json({
+        success: false,
+        error: 'Password must contain at least one uppercase letter'
+      });
+      return;
+    }
+
+    // Check for lowercase letter
+    if (!/[a-z]/.test(password)) {
+      res.status(400).json({
+        success: false,
+        error: 'Password must contain at least one lowercase letter'
+      });
+      return;
+    }
+
+    // Check for special character
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+      res.status(400).json({
+        success: false,
+        error: 'Password must contain at least one special character'
       });
       return;
     }
@@ -163,12 +275,15 @@ const createUser = async (req, res) => {
     delete userObj.password;
 
     // Publish Kafka event
+    console.log('[User Service] Publishing Kafka event...');
     await publishUserEvent('user_created', userObj);
+    console.log('[User Service] Kafka event published, sending response...');
 
     res.status(201).json({
       success: true,
       data: userObj
     });
+    console.log('[User Service] Response sent successfully');
   } catch (error) {
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern)[0];
@@ -321,11 +436,182 @@ const deleteUser = async (req, res) => {
   }
 };
 
+const refreshToken = async (req, res) => {
+  try {
+    const { refreshToken: token } = req.body;
+
+    if (!token) {
+      res.status(400).json({
+        success: false,
+        error: 'Refresh token is required'
+      });
+      return;
+    }
+
+    // Verify refresh token
+    let decoded;
+    try {
+      decoded = verifyRefreshToken(token);
+    } catch (error) {
+      res.status(401).json({
+        success: false,
+        error: 'Invalid or expired refresh token'
+      });
+      return;
+    }
+
+    // Check if it's an admin or user
+    if (decoded.type === 'admin') {
+      const admin = await Admin.findOne({ admin_id: decoded.admin_id });
+      
+      if (!admin) {
+        res.status(404).json({
+          success: false,
+          error: 'Admin not found'
+        });
+        return;
+      }
+
+      if (admin.refresh_token !== token) {
+        res.status(401).json({
+          success: false,
+          error: 'Invalid refresh token'
+        });
+        return;
+      }
+
+      const accessToken = generateAccessToken({
+        admin_id: admin.admin_id,
+        email: admin.email,
+        role: admin.role,
+        type: 'admin'
+      });
+
+      const adminObj = admin.toObject();
+      delete adminObj.password;
+      delete adminObj.refresh_token;
+
+      res.status(200).json({
+        success: true,
+        data: {
+          admin: adminObj,
+          accessToken,
+          role: 'admin',
+          userRole: admin.role
+        }
+      });
+      return;
+    }
+
+    // Regular user refresh
+    const user = await User.findOne({ user_id: decoded.user_id });
+    
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+      return;
+    }
+
+    if (user.refresh_token !== token) {
+      res.status(401).json({
+        success: false,
+        error: 'Invalid refresh token'
+      });
+      return;
+    }
+
+    const accessToken = generateAccessToken({
+      user_id: user.user_id,
+      email: user.email,
+      type: 'user'
+    });
+
+    const userObj = user.toObject();
+    delete userObj.password;
+    delete userObj.refresh_token;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        user: userObj,
+        accessToken,
+        role: 'user'
+      }
+    });
+  } catch (error) {
+    console.error('[User Service] Refresh token error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to refresh token'
+    });
+  }
+};
+
+const logoutUser = async (req, res) => {
+  try {
+    const { user_id, admin_id } = req.body;
+
+    // Handle admin logout
+    if (admin_id) {
+      const admin = await Admin.findOne({ admin_id });
+      if (admin) {
+        admin.refresh_token = null;
+        await admin.save();
+        console.log('[User Service] Admin logout successful:', admin.email);
+      }
+      res.status(200).json({
+        success: true,
+        message: 'Logged out successfully'
+      });
+      return;
+    }
+
+    // Handle user logout
+    if (!user_id) {
+      res.status(400).json({
+        success: false,
+        error: 'User ID or Admin ID is required'
+      });
+      return;
+    }
+
+    const user = await User.findOne({ user_id });
+    
+    if (!user) {
+      console.log('[User Service] User not found for logout:', user_id);
+      res.status(200).json({
+        success: true,
+        message: 'Logged out successfully'
+      });
+      return;
+    }
+
+    user.refresh_token = null;
+    await user.save();
+
+    console.log('[User Service] Logout successful for user:', user.email);
+    res.status(200).json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  } catch (error) {
+    console.error('[User Service] Logout error:', error);
+    res.status(200).json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  }
+};
+
 module.exports = {
   createUser,
   loginUser,
   getUser,
   updateUser,
-  deleteUser
+  deleteUser,
+  refreshToken,
+  logoutUser
 };
 

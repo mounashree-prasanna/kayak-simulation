@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams, Link } from 'react-router-dom'
+import { useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
 import api from '../services/api'
 import './SearchResults.css'
 
 const HotelSearch = () => {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [hotels, setHotels] = useState([])
+  const [hotelImages, setHotelImages] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [sortBy, setSortBy] = useState('price')
@@ -18,14 +22,62 @@ const HotelSearch = () => {
     parking: false
   })
 
-  const city = searchParams.get('city')
-  const checkIn = searchParams.get('checkIn')
-  const checkOut = searchParams.get('checkOut')
-  const guests = searchParams.get('guests') || 2
+  const cityParam = searchParams.get('city')
+  const checkInParam = searchParams.get('checkIn')
+  const checkOutParam = searchParams.get('checkOut')
+  const guestsParam = searchParams.get('guests') || 2
+
+  // Search form state
+  const [searchForm, setSearchForm] = useState({
+    city: cityParam || '',
+    checkIn: checkInParam ? new Date(checkInParam) : null,
+    checkOut: checkOutParam ? new Date(checkOutParam) : null,
+    guests: parseInt(guestsParam) || 2
+  })
+
+  const city = cityParam
+  const checkIn = checkInParam
+  const checkOut = checkOutParam
+  const guests = guestsParam
 
   useEffect(() => {
     fetchHotels()
   }, [searchParams, filters, sortBy])
+
+  useEffect(() => {
+    // Update form when URL params change
+    setSearchForm({
+      city: cityParam || '',
+      checkIn: checkInParam ? new Date(checkInParam) : null,
+      checkOut: checkOutParam ? new Date(checkOutParam) : null,
+      guests: parseInt(guestsParam) || 2
+    })
+  }, [cityParam, checkInParam, checkOutParam, guestsParam])
+
+  const handleSearchChange = (field, value) => {
+    setSearchForm(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault()
+    const params = new URLSearchParams({
+      city: searchForm.city,
+      guests: searchForm.guests
+    })
+    
+    if (searchForm.checkIn) {
+      params.append('checkIn', searchForm.checkIn.toISOString().split('T')[0])
+    }
+    
+    if (searchForm.checkOut) {
+      params.append('checkOut', searchForm.checkOut.toISOString().split('T')[0])
+    }
+    
+    navigate(`/hotels?${params.toString()}`)
+  }
 
   const fetchHotels = async () => {
     try {
@@ -54,6 +106,32 @@ const HotelSearch = () => {
       }
       
       setHotels(hotelsData)
+      
+      // Fetch images for each hotel
+      const imagesMap = {}
+      for (const hotel of hotelsData) {
+        try {
+          // Use hotel_id (string) instead of _id (ObjectId) since images are linked to hotel_id
+          const hotelId = hotel.hotel_id || hotel._id
+          if (!hotelId) continue
+          
+          const imageResponse = await api.get('/images/primary', {
+            params: { entity_type: 'Hotel', entity_id: String(hotelId) }
+          })
+          if (imageResponse.data.success && imageResponse.data.data) {
+            // Store image URL using both _id and hotel_id as keys for lookup
+            const imageUrl = imageResponse.data.data.image_url
+            if (hotel._id) imagesMap[hotel._id] = imageUrl
+            if (hotel.hotel_id) imagesMap[hotel.hotel_id] = imageUrl
+          }
+        } catch (imgErr) {
+          // Image not found, use placeholder - only log if it's not a 404
+          if (imgErr.response?.status !== 404) {
+            console.log(`Error fetching image for hotel ${hotel.hotel_id || hotel._id}:`, imgErr.message)
+          }
+        }
+      }
+      setHotelImages(imagesMap)
       setError(null)
     } catch (err) {
       if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
@@ -94,6 +172,58 @@ const HotelSearch = () => {
   return (
     <div className="search-results">
       <div className="container">
+        <div className="search-form-section">
+          <h2>Modify Your Search</h2>
+          <form onSubmit={handleSearchSubmit} className="inline-search-form">
+            <div className="search-form-row">
+              <div className="search-form-group">
+                <label>Destination</label>
+                <input
+                  type="text"
+                  placeholder="City or hotel name"
+                  value={searchForm.city}
+                  onChange={(e) => handleSearchChange('city', e.target.value)}
+                  required
+                />
+              </div>
+              <div className="search-form-group">
+                <label>Check-in</label>
+                <DatePicker
+                  selected={searchForm.checkIn}
+                  onChange={(date) => handleSearchChange('checkIn', date)}
+                  minDate={new Date()}
+                  placeholderText="Select date"
+                  dateFormat="MMM dd, yyyy"
+                />
+              </div>
+              <div className="search-form-group">
+                <label>Check-out</label>
+                <DatePicker
+                  selected={searchForm.checkOut}
+                  onChange={(date) => handleSearchChange('checkOut', date)}
+                  minDate={searchForm.checkIn || new Date()}
+                  placeholderText="Select date"
+                  dateFormat="MMM dd, yyyy"
+                />
+              </div>
+              <div className="search-form-group">
+                <label>Guests</label>
+                <select
+                  value={searchForm.guests}
+                  onChange={(e) => handleSearchChange('guests', parseInt(e.target.value))}
+                >
+                  {[1, 2, 3, 4, 5, 6].map(num => (
+                    <option key={num} value={num}>{num}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="search-form-options">
+              <button type="submit" className="btn-search-inline">Update Search</button>
+            </div>
+          </form>
+        </div>
+
         <div className="results-header">
           <h1>Hotels in {city}</h1>
           {checkIn && checkOut && (
@@ -181,14 +311,22 @@ const HotelSearch = () => {
                   <p>No hotels found for your search criteria.</p>
                 </div>
               ) : (
-                hotels.map((hotel) => (
-                  <div key={hotel._id || hotel.hotel_id} className="result-card hotel-card">
+                hotels.map((hotel) => {
+                  // Use _id as primary key for lookup (since that's what we're using as the map key)
+                  const hotelId = hotel._id || hotel.hotel_id
+                  const imageUrl = hotelImages[hotelId]
+                  return (
+                  <div key={hotelId} className="result-card hotel-card">
                     <div className="hotel-image">
-                      <div className="image-placeholder">🏨</div>
+                      {imageUrl ? (
+                        <img src={imageUrl} alt={hotel.name || hotel.hotel_name} />
+                      ) : (
+                        <div className="image-placeholder">🏨</div>
+                      )}
                     </div>
                     <div className="result-main">
                       <div className="hotel-header">
-                        <h3>{hotel.hotel_name}</h3>
+                        <h3>{hotel.name || hotel.hotel_name}</h3>
                         <div className="hotel-rating">
                           <span className="stars">{'★'.repeat(hotel.star_rating)}</span>
                           <span className="rating">{hotel.hotel_rating?.toFixed(1) || 'N/A'}</span>
@@ -214,7 +352,8 @@ const HotelSearch = () => {
                       </Link>
                     </div>
                   </div>
-                ))
+                  )
+                })
               )}
             </div>
           </div>

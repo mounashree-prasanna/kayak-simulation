@@ -32,11 +32,12 @@ const createReview = async (req, res) => {
 
 const getReviews = async (req, res) => {
   try {
-    const { entity_type, entity_id } = req.query;
+    const { entity_type, entity_id, user_id } = req.query;
 
     const query = {};
     if (entity_type) query.entity_type = entity_type;
     if (entity_id) query.entity_id = entity_id;
+    if (user_id) query.user_id = user_id;
 
     const reviews = await Review.find(query)
       .sort({ created_at: -1 })

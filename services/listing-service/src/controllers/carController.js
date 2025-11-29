@@ -2,7 +2,7 @@ const Car = require('../models/Car');
 
 const searchCars = async (req, res) => {
   try {
-    const { city, date, price_min, price_max, car_type } = req.query;
+    const { city, pickupDate, dropoffDate, price_min, price_max, car_type } = req.query;
 
     const query = {
       availability_status: 'Available'
@@ -21,6 +21,11 @@ const searchCars = async (req, res) => {
     if (car_type) {
       query.car_type = new RegExp(car_type, 'i');
     }
+
+    // Note: Date-based availability filtering would require checking bookings
+    // For now, we filter by availability_status only
+    // pickupDate and dropoffDate are accepted but not used for filtering yet
+    // This can be enhanced later by integrating with booking service
 
     const cars = await Car.find(query)
       .sort({ car_rating: -1, daily_rental_price: 1 })

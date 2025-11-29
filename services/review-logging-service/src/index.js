@@ -5,6 +5,7 @@ const connectDB = require('./config/database');
 const { initializeKafka } = require('./config/kafka');
 const reviewRoutes = require('./routes/reviewRoutes');
 const loggingRoutes = require('./routes/loggingRoutes');
+const imageRoutes = require('./routes/imageRoutes');
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ app.get('/health', (req, res) => {
 // Routes
 app.use('/reviews', reviewRoutes);
 app.use('/logs', loggingRoutes);
+app.use('/images', imageRoutes);
 
 // 404 handler
 app.use((req, res) => {

@@ -20,11 +20,19 @@ const flightSchema = new Schema({
     trim: true,
     uppercase: true
   },
+  departure_city: {
+    type: String,
+    trim: true
+  },
   arrival_airport: {
     type: String,
     required: true,
     trim: true,
     uppercase: true
+  },
+  arrival_city: {
+    type: String,
+    trim: true
   },
   departure_datetime: {
     type: Date,
@@ -85,6 +93,8 @@ flightSchema.index({
   arrival_airport: 1, 
   departure_datetime: 1 
 });
+flightSchema.index({ departure_city: 1 });
+flightSchema.index({ arrival_city: 1 });
 flightSchema.index({ departure_datetime: 1 });
 flightSchema.index({ rating: 1 });
 
