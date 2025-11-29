@@ -3,6 +3,8 @@ version: '3.8'
 services:
   # MongoDB Atlas is used instead of local MongoDB
   # Connection: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
+  # MySQL Connection: root:rootpass@host.docker.internal:3306/kayak_db
+  # change mysql password to your mysql password
 
   # Zookeeper for Kafka
   zookeeper:
@@ -100,6 +102,11 @@ services:
       KAFKA_BROKER: kafka:9093
       USER_SERVICE_URL: http://user-service:3001
       LISTING_SERVICE_URL: http://listing-service:3002
+      MYSQL_HOST: host.docker.internal
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: rootpass  #change to your mysql password
+      MYSQL_DATABASE: kayak_db
     ports:
       - "3003:3003"
     depends_on:
@@ -125,6 +132,11 @@ services:
       MONGODB_DB_NAME: kayak
       KAFKA_BROKER: kafka:9093
       BOOKING_SERVICE_URL: http://booking-service:3003
+      MYSQL_HOST: host.docker.internal
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: rootpass  #change to your mysql password
+      MYSQL_DATABASE: kayak_db
     ports:
       - "3004:3004"
     depends_on:

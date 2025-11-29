@@ -64,8 +64,28 @@ The application consists of:
   - Port 80 (production/Kubernetes)
 
 - **Infrastructure**
-  - MongoDB Atlas (database)
+  - MongoDB Atlas (database for users, listings, reviews, logs)
+  - MySQL (database for bookings and billing - ACID compliance)
   - Kafka + Zookeeper (event streaming)
+
+### Database Architecture
+
+The application uses a **dual-database architecture**:
+
+**MongoDB** (MongoDB Atlas):
+- Stores reference data: Users, Flights, Hotels, Cars, Reviews, Logs
+- Flexible schema for varied data structures
+- High read performance for search operations
+
+**MySQL** (Local or Docker):
+- Stores transactional data: Bookings, Billings
+- ACID compliance ensures data integrity for financial transactions
+- Foreign key constraints maintain referential integrity
+- Transaction support for complex operations
+
+**Why Two Databases?**
+- MongoDB: Best for flexible, document-based reference data
+- MySQL: Best for structured, transactional financial data requiring ACID guarantees
 
 ## Deployment Options
 
@@ -79,20 +99,100 @@ The application consists of:
 4. Whitelist your IP (or use `0.0.0.0/0` for development)
 5. Get your connection string
 
-#### Step 2: Update docker-compose.yml
+#### Step 2: Setup MySQL Database
 
-Edit `docker-compose.yml` and update the MongoDB connection string in all services:
+**Option A: Using Local MySQL (Recommended for Development)**
 
+1. Install MySQL on your local machine:
+   - **Windows**: Download from https://dev.mysql.com/downloads/installer/
+   - **Mac**: `brew install mysql` or download from MySQL website
+   - **Linux**: `sudo apt-get install mysql-server` (Ubuntu/Debian) or `sudo yum install mysql-server` (CentOS/RHEL)
+
+2. Start MySQL service:
+   ```bash
+   # Windows: MySQL should start automatically after installation
+   # Mac/Linux:
+   sudo systemctl start mysql
+   # Or on Mac with Homebrew:
+   brew services start mysql
+   ```
+
+3. Create MySQL user and set password (if not already done):
+   ```bash
+   mysql -u root -p
+   ```
+   Then in MySQL prompt:
+   ```sql
+   ALTER USER 'root'@'localhost' IDENTIFIED BY 'your_password';
+   FLUSH PRIVILEGES;
+   EXIT;
+   ```
+
+4. Initialize the database schema:
+   ```bash
+   cd scripts
+   npm install
+   # Update the MySQL credentials in runMySQLInit.js or set environment variables
+   MYSQL_HOST=localhost MYSQL_PORT=3306 MYSQL_USER=root MYSQL_PASSWORD=your_password MYSQL_DATABASE=kayak_db node runMySQLInit.js
+   ```
+
+**Option B: Using MySQL in Docker**
+
+If you prefer to run MySQL in Docker, add this to your `docker-compose.yml`:
+
+```yaml
+mysql:
+  image: mysql:8.0
+  container_name: kayak-mysql
+  environment:
+    MYSQL_ROOT_PASSWORD: rootpass
+    MYSQL_DATABASE: kayak_db
+  ports:
+    - "3306:3306"
+  volumes:
+    - mysql_data:/var/lib/mysql
+  healthcheck:
+    test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+
+volumes:
+  mysql_data:
+```
+
+Then initialize:
+```bash
+cd scripts
+npm install
+MYSQL_HOST=localhost MYSQL_PORT=3306 MYSQL_USER=root MYSQL_PASSWORD=rootpass MYSQL_DATABASE=kayak_db node runMySQLInit.js
+```
+
+#### Step 3: Update docker-compose.yml
+
+Edit `docker-compose.yml` and update:
+
+1. **MongoDB connection string** in all services:
 ```yaml
 MONGODB_URI: mongodb+srv://<username>:<password>@<cluster-url>/kayak?appName=Cluster-236
 ```
 
-Replace:
-- `<username>` with your MongoDB username
-- `<password>` with your MongoDB password
-- `<cluster-url>` with your cluster URL
+2. **MySQL connection details** in `booking-service` and `billing-service`:
+```yaml
+environment:
+  MYSQL_HOST: host.docker.internal  # Use 'localhost' if MySQL is in Docker
+  MYSQL_PORT: 3306
+  MYSQL_USER: root
+  MYSQL_PASSWORD: your_mysql_password  # Change to your MySQL root password
+  MYSQL_DATABASE: kayak_db
+```
 
-#### Step 3: Start All Services
+**Important Notes:**
+- If MySQL is running locally (not in Docker), use `host.docker.internal` as the host
+- If MySQL is in Docker, use `mysql` (the service name) as the host
+- Update `MYSQL_PASSWORD` to match your MySQL root password
+
+#### Step 4: Start All Services
 
 ```bash
 # Start all services
@@ -104,7 +204,7 @@ docker-compose up --build -d
 
 Wait 2-3 minutes for all services to start.
 
-#### Step 4: Start Frontend (Development)
+#### Step 5: Start Frontend (Development)
 
 Open a new terminal:
 
@@ -116,7 +216,7 @@ npm run dev
 
 Frontend will be available at: **http://localhost:5174**
 
-#### Step 5: Verify Services
+#### Step 6: Verify Services
 
 ```bash
 # Check all containers
@@ -271,6 +371,48 @@ Key environment variables to configure:
    mongodb+srv://<username>:<password>@<cluster-url>/kayak?appName=Cluster-236
    ```
 
+### MySQL Setup
+
+**Purpose**: MySQL is used for bookings and billing data to ensure ACID compliance (Atomicity, Consistency, Isolation, Durability) for financial transactions.
+
+**Requirements**:
+- MySQL 8.0 or later
+- Root access or a user with CREATE DATABASE privileges
+
+**Setup Steps**:
+
+1. **Install MySQL** (if not already installed):
+   - See Step 2 in Docker Compose setup above
+
+2. **Verify MySQL is Running**:
+   ```bash
+   mysql --version
+   # Test connection
+   mysql -u root -p
+   ```
+
+3. **Initialize Database Schema**:
+   ```bash
+   cd scripts
+   npm install
+   MYSQL_HOST=localhost MYSQL_PORT=3306 MYSQL_USER=root MYSQL_PASSWORD=your_password MYSQL_DATABASE=kayak_db node runMySQLInit.js
+   ```
+
+4. **Verify Tables Created**:
+   ```bash
+   mysql -u root -p -e "USE kayak_db; SHOW TABLES;"
+   ```
+   You should see `bookings` and `billings` tables.
+
+5. **Update docker-compose.yml**:
+   - Set `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE` in `booking-service` and `billing-service` environment variables
+
+**Database Schema**:
+- **bookings**: Stores all booking records (Flight, Hotel, Car)
+- **billings**: Stores payment transactions linked to bookings
+- Foreign key constraints ensure data integrity
+- Indexes optimize query performance
+
 ### Port Configuration
 
 **Docker Compose:**
@@ -337,6 +479,42 @@ kubectl describe pod <pod-name> -n kayak
 2. **Check Network Access**: Ensure your IP is whitelisted in MongoDB Atlas
 3. **Test Connection**: Use MongoDB Compass or `mongosh` to test connection
 4. **Check Logs**: Look for MongoDB connection errors in service logs
+
+### MySQL Connection Issues
+
+1. **Verify MySQL is Running**:
+   ```bash
+   # Check MySQL service status
+   sudo systemctl status mysql  # Linux
+   brew services list | grep mysql  # Mac
+   ```
+
+2. **Test Connection**:
+   ```bash
+   mysql -u root -p -h localhost -P 3306
+   ```
+
+3. **Check docker-compose.yml Configuration**:
+   - Verify `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD` are correct
+   - If MySQL is local, use `host.docker.internal` as host
+   - If MySQL is in Docker, use service name (e.g., `mysql`)
+
+4. **Check Service Logs**:
+   ```bash
+   docker-compose logs booking-service | grep MySQL
+   docker-compose logs billing-service | grep MySQL
+   ```
+
+5. **Verify Database Exists**:
+   ```bash
+   mysql -u root -p -e "SHOW DATABASES LIKE 'kayak_db';"
+   ```
+
+6. **Reinitialize Database** (if needed):
+   ```bash
+   cd scripts
+   MYSQL_HOST=localhost MYSQL_PORT=3306 MYSQL_USER=root MYSQL_PASSWORD=your_password MYSQL_DATABASE=kayak_db node runMySQLInit.js
+   ```
 
 ### Port Already in Use
 

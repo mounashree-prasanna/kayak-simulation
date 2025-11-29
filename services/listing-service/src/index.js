@@ -25,6 +25,12 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`[Listing Service] ${req.method} ${req.path}`);
+  next();
+});
+
 // Routes
 app.use('/flights', flightRoutes);
 app.use('/hotels', hotelRoutes);

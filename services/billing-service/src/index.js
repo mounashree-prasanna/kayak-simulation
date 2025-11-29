@@ -1,7 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const connectDB = require('./config/database');
+const connectDB = require('./config/database'); // MongoDB for user references
+const { connectMySQL } = require('./config/mysql'); // MySQL for billings
 const { initializeKafka } = require('./config/kafka');
 const billingRoutes = require('./routes/billingRoutes');
 
@@ -47,7 +48,10 @@ app.use((err, req, res, next) => {
 // Initialize services
 const startServer = async () => {
   try {
+    // Connect to MongoDB (for user references)
     await connectDB();
+    // Connect to MySQL (for billings - ACID compliance)
+    await connectMySQL();
     await initializeKafka();
     
     app.listen(PORT, () => {

@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Hotel = require('../models/Hotel');
 
 const searchHotels = async (req, res) => {
@@ -47,8 +48,15 @@ const searchHotels = async (req, res) => {
 const getHotel = async (req, res) => {
   try {
     const { hotel_id } = req.params;
-
-    const hotel = await Hotel.findOne({ hotel_id });
+    let hotel;
+    
+    if (mongoose.Types.ObjectId.isValid(hotel_id)) {
+      hotel = await Hotel.findById(hotel_id);
+    }
+    
+    if (!hotel) {
+      hotel = await Hotel.findOne({ hotel_id });
+    }
 
     if (!hotel) {
       res.status(404).json({
@@ -72,7 +80,6 @@ const getHotel = async (req, res) => {
 
 const createHotel = async (req, res) => {
   try {
-    // TODO: Add admin authentication middleware
     const hotel = new Hotel(req.body);
     const savedHotel = await hotel.save();
 
@@ -98,7 +105,6 @@ const createHotel = async (req, res) => {
 
 const updateHotel = async (req, res) => {
   try {
-    // TODO: Add admin authentication middleware
     const { hotel_id } = req.params;
 
     req.body.updated_at = new Date();
@@ -131,7 +137,6 @@ const updateHotel = async (req, res) => {
 
 const deleteHotel = async (req, res) => {
   try {
-    // TODO: Add admin authentication middleware
     const { hotel_id } = req.params;
 
     const hotel = await Hotel.findOneAndDelete({ hotel_id });

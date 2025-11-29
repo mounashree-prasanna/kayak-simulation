@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Car = require('../models/Car');
 
 const searchCars = async (req, res) => {
@@ -42,8 +43,15 @@ const searchCars = async (req, res) => {
 const getCar = async (req, res) => {
   try {
     const { car_id } = req.params;
-
-    const car = await Car.findOne({ car_id });
+    let car;
+    
+    if (mongoose.Types.ObjectId.isValid(car_id)) {
+      car = await Car.findById(car_id);
+    }
+    
+    if (!car) {
+      car = await Car.findOne({ car_id });
+    }
 
     if (!car) {
       res.status(404).json({
@@ -67,7 +75,6 @@ const getCar = async (req, res) => {
 
 const createCar = async (req, res) => {
   try {
-    // TODO: Add admin authentication middleware
     const car = new Car(req.body);
     const savedCar = await car.save();
 
@@ -93,7 +100,6 @@ const createCar = async (req, res) => {
 
 const updateCar = async (req, res) => {
   try {
-    // TODO: Add admin authentication middleware
     const { car_id } = req.params;
 
     req.body.updated_at = new Date();
@@ -126,7 +132,6 @@ const updateCar = async (req, res) => {
 
 const deleteCar = async (req, res) => {
   try {
-    // TODO: Add admin authentication middleware
     const { car_id } = req.params;
 
     const car = await Car.findOneAndDelete({ car_id });

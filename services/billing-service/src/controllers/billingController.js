@@ -1,100 +1,106 @@
-const mongoose = require('mongoose');
-const axios = require('axios');
-const Billing = require('../models/Billing');
+const BillingRepository = require('../repositories/billingRepository');
+const { executeTransaction } = require('../config/mysql');
 const { publishBillingEvent } = require('../config/kafka');
 const { generateBillingId, generateInvoiceNumber, processPayment } = require('../utils/billingUtils');
+const axios = require('axios');
 
 const BOOKING_SERVICE_URL = process.env.BOOKING_SERVICE_URL || 'http://localhost:3003';
 
 const chargeBooking = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     const { user_id, booking_id, payment_method, amount } = req.body;
 
-    // Fetch booking from Booking Service
-    const bookingResponse = await axios.get(`${BOOKING_SERVICE_URL}/bookings/${booking_id}`);
-    const booking = bookingResponse.data.data;
+    // Use transaction for ACID compliance
+    const result = await executeTransaction(async (connection) => {
+      // Fetch booking from Booking Service
+      const bookingResponse = await axios.get(`${BOOKING_SERVICE_URL}/bookings/${booking_id}`);
+      const booking = bookingResponse.data.data;
 
-    if (!booking) {
-      throw new Error('Booking not found');
-    }
+      if (!booking) {
+        throw new Error('Booking not found');
+      }
 
-    if (booking.booking_status !== 'Pending') {
-      throw new Error(`Booking is already ${booking.booking_status}`);
-    }
+      if (booking.booking_status !== 'Pending') {
+        throw new Error(`Booking is already ${booking.booking_status}`);
+      }
 
-    // Process payment (mock)
-    const paymentResult = await processPayment(amount, payment_method);
+      // Process payment (mock)
+      const paymentResult = await processPayment(amount, payment_method);
 
-    const billing_id = generateBillingId();
-    const invoice_number = generateInvoiceNumber();
+      const billing_id = generateBillingId();
+      const invoice_number = generateInvoiceNumber();
 
-    const billing = new Billing({
-      billing_id,
-      user_id,
-      user_ref: booking.user_ref,
-      booking_type: booking.booking_type,
-      booking_id,
-      booking_ref: booking._id,
-      transaction_date: new Date(),
-      total_amount_paid: amount,
-      payment_method,
-      transaction_status: paymentResult.success ? 'Success' : 'Failed',
-      invoice_number,
-      invoice_details: {
-        line_items: [
-          {
-            description: `${booking.booking_type} Booking`,
-            quantity: 1,
-            unit_price: amount,
-            total: amount
-          }
-        ],
-        subtotal: amount,
-        tax: amount * 0.08, // 8% tax
-        total: amount * 1.08
-      },
-      created_at: new Date(),
-      updated_at: new Date()
+      const billingData = {
+        billing_id,
+        user_id,
+        user_ref: booking.user_ref || null,
+        booking_type: booking.booking_type,
+        booking_id,
+        booking_ref: booking.id ? booking.id.toString() : null,
+        transaction_date: new Date(),
+        total_amount_paid: amount,
+        payment_method,
+        transaction_status: paymentResult.success ? 'Success' : 'Failed',
+        invoice_number,
+        invoice_details: {
+          line_items: [
+            {
+              description: `${booking.booking_type} Booking`,
+              quantity: 1,
+              unit_price: amount,
+              total: amount
+            }
+          ],
+          subtotal: amount,
+          tax: amount * 0.08, // 8% tax
+          total: amount * 1.08
+        }
+      };
+
+      const savedBilling = await BillingRepository.create(billingData, connection);
+
+      // Update booking status based on payment result
+      if (paymentResult.success) {
+        // Update booking status to Confirmed
+        try {
+          await axios.put(`${BOOKING_SERVICE_URL}/bookings/${booking_id}/confirm`, {}, { timeout: 5000 });
+        } catch (error) {
+          console.error('Failed to update booking status, but payment succeeded');
+          // Transaction will still commit for billing, but booking update failed
+        }
+      } else {
+        // Update booking status to Cancelled
+        try {
+          await axios.put(`${BOOKING_SERVICE_URL}/bookings/${booking_id}/cancel`, {}, { timeout: 5000 });
+        } catch (error) {
+          console.error('Failed to update booking status');
+        }
+      }
+
+      return {
+        billing: savedBilling,
+        paymentResult
+      };
     });
 
-    const savedBilling = await billing.save({ session });
-
-    if (paymentResult.success) {
-      // Update booking status to Confirmed
-      await axios.put(`${BOOKING_SERVICE_URL}/bookings/${booking_id}/confirm`, {}, { timeout: 5000 }).catch(() => {
-        console.error('Failed to update booking status, but payment succeeded');
-      });
-
-      // Publish success event
-      await publishBillingEvent('billing_success', savedBilling.toObject());
+    // Publish Kafka event (after transaction commits)
+    if (result.paymentResult.success) {
+      await publishBillingEvent('billing_success', result.billing);
     } else {
-      // Update booking status to Cancelled
-      await axios.put(`${BOOKING_SERVICE_URL}/bookings/${booking_id}/cancel`, {}, { timeout: 5000 }).catch(() => {
-        console.error('Failed to update booking status');
-      });
-
-      // Publish failed event
-      await publishBillingEvent('billing_failed', savedBilling.toObject());
+      await publishBillingEvent('billing_failed', result.billing);
     }
 
-    await session.commitTransaction();
-
-    res.status(paymentResult.success ? 201 : 402).json({
-      success: paymentResult.success,
-      data: savedBilling,
-      message: paymentResult.success ? 'Payment successful' : paymentResult.message
+    res.status(result.paymentResult.success ? 201 : 402).json({
+      success: result.paymentResult.success,
+      data: result.billing,
+      message: result.paymentResult.success ? 'Payment successful' : result.paymentResult.message
     });
   } catch (error) {
-    await session.abortTransaction();
+    console.error('[Billing Service] Charge booking error:', error);
     res.status(400).json({
       success: false,
       error: error.message || 'Failed to process payment'
     });
-  } finally {
-    session.endSession();
   }
 };
 
@@ -102,14 +108,13 @@ const getBilling = async (req, res) => {
   try {
     const { billing_id } = req.params;
 
-    const billing = await Billing.findOne({ billing_id });
+    const billing = await BillingRepository.findByBillingId(billing_id);
 
     if (!billing) {
-      res.status(404).json({
+      return res.status(404).json({
         success: false,
         error: 'Billing record not found'
       });
-      return;
     }
 
     res.status(200).json({
@@ -117,6 +122,7 @@ const getBilling = async (req, res) => {
       data: billing
     });
   } catch (error) {
+    console.error('[Billing Service] Get billing error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to fetch billing'
@@ -128,36 +134,34 @@ const searchBilling = async (req, res) => {
   try {
     const { date, month, year, user_id, status } = req.query;
 
-    const query = {};
+    const filters = {};
 
     if (user_id) {
-      query.user_id = user_id;
+      filters.user_id = user_id;
     }
 
     if (status) {
-      query.transaction_status = status;
+      filters.status = status;
     }
 
     if (date) {
-      const searchDate = new Date(date);
-      const nextDay = new Date(searchDate);
+      filters.startDate = new Date(date);
+      const nextDay = new Date(filters.startDate);
       nextDay.setDate(nextDay.getDate() + 1);
-      query.transaction_date = {
-        $gte: searchDate,
-        $lt: nextDay
-      };
+      filters.endDate = nextDay;
     } else if (month && year) {
-      const startDate = new Date(Number(year), Number(month) - 1, 1);
-      const endDate = new Date(Number(year), Number(month), 1);
-      query.transaction_date = {
-        $gte: startDate,
-        $lt: endDate
-      };
+      filters.startDate = new Date(Number(year), Number(month) - 1, 1);
+      filters.endDate = new Date(Number(year), Number(month), 1);
     }
 
-    const billings = await Billing.find(query)
-      .sort({ transaction_date: -1 })
-      .limit(100);
+    let billings;
+    if (user_id) {
+      billings = await BillingRepository.findByUserId(user_id, filters);
+    } else {
+      // For general search without user_id, we'd need a different method
+      // For now, return empty if no user_id
+      billings = [];
+    }
 
     res.status(200).json({
       success: true,
@@ -165,6 +169,7 @@ const searchBilling = async (req, res) => {
       data: billings
     });
   } catch (error) {
+    console.error('[Billing Service] Search billing error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to search billing records'
@@ -174,25 +179,30 @@ const searchBilling = async (req, res) => {
 
 const getBillingByMonth = async (req, res) => {
   try {
-    const { year, month } = req.query;
+    const { year, month, user_id } = req.query;
 
     if (!year || !month) {
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         error: 'year and month parameters are required'
       });
-      return;
     }
 
     const startDate = new Date(Number(year), Number(month) - 1, 1);
     const endDate = new Date(Number(year), Number(month), 1);
 
-    const billings = await Billing.find({
-      transaction_date: {
-        $gte: startDate,
-        $lt: endDate
-      }
-    }).sort({ transaction_date: 1 });
+    const filters = {
+      startDate,
+      endDate
+    };
+
+    let billings;
+    if (user_id) {
+      billings = await BillingRepository.findByUserId(user_id, filters);
+    } else {
+      // For general search without user_id, we'd need a different method
+      billings = [];
+    }
 
     res.status(200).json({
       success: true,
@@ -200,6 +210,7 @@ const getBillingByMonth = async (req, res) => {
       data: billings
     });
   } catch (error) {
+    console.error('[Billing Service] Get billing by month error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to fetch billing by month'
@@ -213,4 +224,3 @@ module.exports = {
   searchBilling,
   getBillingByMonth
 };
-

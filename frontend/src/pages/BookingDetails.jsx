@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { useAppSelector } from '../store/hooks'
+import { store } from '../store/store'
 import api from '../services/api'
 import './MyBookings.css'
 
@@ -49,6 +50,31 @@ const BookingDetails = () => {
       alert('Booking cancelled successfully')
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to cancel booking')
+    }
+  }
+
+  const handlePayment = async () => {
+    if (!window.confirm('Proceed to payment?')) {
+      return
+    }
+
+    try {
+      const { user } = store.getState().auth
+      const response = await api.post('/billing/charge', {
+        user_id: user?.user_id,
+        booking_id: booking.booking_id || id,
+        payment_method: 'Credit Card',
+        amount: booking.total_price
+      })
+      
+      if (response.data.success) {
+        alert('Payment successful! Booking confirmed.')
+        fetchBooking() // Refresh to show updated status
+      } else {
+        alert('Payment failed: ' + (response.data.message || 'Please try again'))
+      }
+    } catch (err) {
+      alert(err.response?.data?.error || 'Payment failed. Please try again.')
     }
   }
 
@@ -214,6 +240,11 @@ const BookingDetails = () => {
 
           {booking.status !== 'cancelled' && booking.status !== 'completed' && (
             <div className="booking-actions">
+              {booking.status === 'pending' && (
+                <button onClick={handlePayment} className="btn-pay" style={{ marginRight: '10px', backgroundColor: '#4ade80', color: 'white' }}>
+                  Complete Payment
+                </button>
+              )}
               <button onClick={handleCancel} className="btn-cancel">
                 Cancel Booking
               </button>

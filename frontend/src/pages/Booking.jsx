@@ -68,33 +68,70 @@ const Booking = () => {
     setSubmitting(true)
 
     try {
-      let bookingData = {}
+      if (!user || !user.user_id) {
+        alert('User information not available. Please log in again.')
+        navigate('/login')
+        return
+      }
 
+      // Map frontend type to backend booking_type (capitalized)
+      const bookingTypeMap = {
+        'flight': 'Flight',
+        'hotel': 'Hotel',
+        'car': 'Car'
+      }
+      const booking_type = bookingTypeMap[type]
+      if (!booking_type) {
+        alert('Invalid booking type')
+        return
+      }
+
+      let bookingData = {
+        user_id: user.user_id,
+        booking_type: booking_type,
+        reference_id: id, // The hotel/flight/car ID
+        start_date: '',
+        end_date: '',
+        total_price: 0
+      }
+
+      // Calculate dates and price based on type
       if (type === 'flight') {
-        bookingData = {
-          flightId: id,
-          passengers: formData.passengers,
-          class: item?.flight_class || 'economy'
-        }
+        // For flights, use current date as start and end (or you can add date selection)
+        const flightDate = new Date()
+        bookingData.start_date = flightDate.toISOString()
+        bookingData.end_date = flightDate.toISOString()
+        bookingData.total_price = item?.ticket_price || 0
       } else if (type === 'hotel') {
-        bookingData = {
-          hotelId: id,
-          checkIn: formData.checkIn,
-          checkOut: formData.checkOut,
-          guests: formData.guests,
-          roomType: 'Standard'
+        if (!formData.checkIn || !formData.checkOut) {
+          alert('Please select check-in and check-out dates')
+          return
         }
+        bookingData.start_date = new Date(formData.checkIn).toISOString()
+        bookingData.end_date = new Date(formData.checkOut).toISOString()
+        
+        // Calculate total price: price_per_night * number of nights
+        const checkIn = new Date(formData.checkIn)
+        const checkOut = new Date(formData.checkOut)
+        const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24))
+        bookingData.total_price = (item?.price_per_night || 0) * nights
       } else if (type === 'car') {
-        bookingData = {
-          carRentalId: id,
-          driver: formData.driver,
-          pickupDate: formData.pickupDate,
-          dropoffDate: formData.dropoffDate
+        if (!formData.pickupDate || !formData.dropoffDate) {
+          alert('Please select pick-up and drop-off dates')
+          return
         }
+        bookingData.start_date = new Date(formData.pickupDate).toISOString()
+        bookingData.end_date = new Date(formData.dropoffDate).toISOString()
+        
+        // Calculate total price: price_per_day * number of days
+        const pickup = new Date(formData.pickupDate)
+        const dropoff = new Date(formData.dropoffDate)
+        const days = Math.ceil((dropoff - pickup) / (1000 * 60 * 60 * 24))
+        bookingData.total_price = (item?.daily_rental_price || item?.price_per_day || 0) * days
       }
 
       const response = await api.post('/bookings', bookingData)
-      navigate(`/booking-details/${response.data.data._id || response.data.data.booking_id}`)
+      navigate(`/booking-details/${response.data.data.booking_id || response.data.data._id}`)
     } catch (err) {
       alert(err.response?.data?.error || 'Booking failed. Please try again.')
     } finally {

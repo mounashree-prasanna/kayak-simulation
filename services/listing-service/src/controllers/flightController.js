@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Flight = require('../models/Flight');
 
 const searchFlights = async (req, res) => {
@@ -58,7 +59,15 @@ const getFlight = async (req, res) => {
   try {
     const { flight_id } = req.params;
 
-    const flight = await Flight.findOne({ flight_id });
+    // Try to find by _id (MongoDB ObjectId) first, then by flight_id field
+    let flight;
+    if (mongoose.Types.ObjectId.isValid(flight_id)) {
+      flight = await Flight.findById(flight_id);
+    }
+    
+    if (!flight) {
+      flight = await Flight.findOne({ flight_id });
+    }
 
     if (!flight) {
       res.status(404).json({
@@ -82,7 +91,6 @@ const getFlight = async (req, res) => {
 
 const createFlight = async (req, res) => {
   try {
-    // TODO: Add admin authentication middleware
     const flight = new Flight(req.body);
     const savedFlight = await flight.save();
 
@@ -108,7 +116,6 @@ const createFlight = async (req, res) => {
 
 const updateFlight = async (req, res) => {
   try {
-    // TODO: Add admin authentication middleware
     const { flight_id } = req.params;
 
     req.body.updated_at = new Date();
@@ -141,7 +148,6 @@ const updateFlight = async (req, res) => {
 
 const deleteFlight = async (req, res) => {
   try {
-    // TODO: Add admin authentication middleware
     const { flight_id } = req.params;
 
     const flight = await Flight.findOneAndDelete({ flight_id });
