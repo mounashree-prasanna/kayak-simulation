@@ -9,6 +9,7 @@ const CarDetails = () => {
   const navigate = useNavigate()
   const { isAuthenticated } = useAppSelector(state => state.auth)
   const [car, setCar] = useState(null)
+  const [carImages, setCarImages] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -20,7 +21,32 @@ const CarDetails = () => {
     try {
       setLoading(true)
       const response = await api.get(`/cars/${id}`)
-      setCar(response.data.data)
+      const carData = response.data.data
+      setCar(carData)
+      
+      // Fetch images for the car - try both car_id and _id
+      try {
+        const carId = carData.car_id || id
+        const imageResponse = await api.get('/images', {
+          params: { entity_type: 'Car', entity_id: String(carId) }
+        })
+        if (imageResponse.data.success && imageResponse.data.data) {
+          setCarImages(imageResponse.data.data.map(img => img.image_url))
+        }
+      } catch (imgErr) {
+        // Try with _id if car_id didn't work
+        try {
+          const imageResponse = await api.get('/images', {
+            params: { entity_type: 'Car', entity_id: String(id) }
+          })
+          if (imageResponse.data.success && imageResponse.data.data) {
+            setCarImages(imageResponse.data.data.map(img => img.image_url))
+          }
+        } catch (imgErr2) {
+          console.log('No images found for car')
+        }
+      }
+      
       setError(null)
     } catch (err) {
       if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
@@ -68,11 +94,13 @@ const CarDetails = () => {
         
         <div className="details-header">
           <div>
-            <h1>{car.vehicle_model || car.car_model}</h1>
+            <h1>{car.model || car.vehicle_model || car.car_model}</h1>
             <div className="car-meta">
               <span>{car.car_type || car.vehicle_type}</span>
               <span>•</span>
-              <span>{car.company_name || car.rental_company}</span>
+              <span>{car.provider_name || car.company_name || car.rental_company}</span>
+              {car.year && <span>•</span>}
+              {car.year && <span>{car.year}</span>}
             </div>
           </div>
           <div className="details-price">
@@ -84,7 +112,11 @@ const CarDetails = () => {
         <div className="details-content">
           <div className="details-main">
             <div className="car-image-large">
-              <div className="image-placeholder-large">🚗</div>
+              {carImages.length > 0 ? (
+                <img src={carImages[0]} alt={car.model || car.vehicle_model || car.car_model} />
+              ) : (
+                <div className="image-placeholder-large">🚗</div>
+              )}
             </div>
 
             <div className="details-section">
@@ -92,26 +124,32 @@ const CarDetails = () => {
               <div className="details-grid">
                 <div className="detail-item">
                   <span className="detail-label">Model:</span>
-                  <span className="detail-value">{car.vehicle_model || car.car_model}</span>
+                  <span className="detail-value">{car.model || car.vehicle_model || car.car_model}</span>
                 </div>
                 <div className="detail-item">
                   <span className="detail-label">Type:</span>
                   <span className="detail-value">{car.car_type || car.vehicle_type}</span>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-label">Company:</span>
-                  <span className="detail-value">{car.company_name || car.rental_company}</span>
+                  <span className="detail-label">Provider:</span>
+                  <span className="detail-value">{car.provider_name || car.company_name || car.rental_company}</span>
                 </div>
-                {car.seats && (
+                {car.year && (
                   <div className="detail-item">
-                    <span className="detail-label">Seats:</span>
-                    <span className="detail-value">{car.seats}</span>
+                    <span className="detail-label">Year:</span>
+                    <span className="detail-value">{car.year}</span>
                   </div>
                 )}
-                {car.fuel_type && (
+                {car.number_of_seats && (
                   <div className="detail-item">
-                    <span className="detail-label">Fuel Type:</span>
-                    <span className="detail-value">{car.fuel_type}</span>
+                    <span className="detail-label">Seats:</span>
+                    <span className="detail-value">{car.number_of_seats}</span>
+                  </div>
+                )}
+                {car.transmission_type && (
+                  <div className="detail-item">
+                    <span className="detail-label">Transmission:</span>
+                    <span className="detail-value">{car.transmission_type}</span>
                   </div>
                 )}
               </div>
@@ -123,7 +161,10 @@ const CarDetails = () => {
                 <div className="detail-item">
                   <span className="detail-label">Pick-up Location:</span>
                   <span className="detail-value">
-                    {car.pickup_city || car.location?.city}, {car.pickup_state || car.location?.state || car.location?.country}
+                    {car.pickup_city || car.location?.city}
+                    {(car.pickup_state || car.location?.state || car.location?.country) && 
+                      `, ${car.pickup_state || car.location?.state || car.location?.country}`
+                    }
                   </span>
                 </div>
                 {car.location?.address && (

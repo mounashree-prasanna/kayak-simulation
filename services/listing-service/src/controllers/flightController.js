@@ -7,11 +7,30 @@ const searchFlights = async (req, res) => {
     const query = {};
 
     if (origin) {
-      query.departure_airport = origin.toUpperCase();
+      const originTrimmed = origin.trim();
+      const originUpper = originTrimmed.toUpperCase();
+      // Check if it's an airport code (3-4 letters, all uppercase when converted)
+      // Airport codes are typically 3-4 characters
+      if (/^[A-Z]{3,4}$/.test(originUpper) && originTrimmed.length <= 4) {
+        // It's an airport code - search by airport
+        query.departure_airport = originUpper;
+      } else {
+        // It's a city name - search by city (case-insensitive)
+        query.departure_city = { $regex: originTrimmed, $options: 'i' };
+      }
     }
 
     if (destination) {
-      query.arrival_airport = destination.toUpperCase();
+      const destTrimmed = destination.trim();
+      const destUpper = destTrimmed.toUpperCase();
+      // Check if it's an airport code (3-4 letters, all uppercase when converted)
+      if (/^[A-Z]{3,4}$/.test(destUpper) && destTrimmed.length <= 4) {
+        // It's an airport code - search by airport
+        query.arrival_airport = destUpper;
+      } else {
+        // It's a city name - search by city (case-insensitive)
+        query.arrival_city = { $regex: destTrimmed, $options: 'i' };
+      }
     }
 
     if (date) {

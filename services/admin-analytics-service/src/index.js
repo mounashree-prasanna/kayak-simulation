@@ -3,6 +3,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/database');
 const analyticsRoutes = require('./routes/analyticsRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 dotenv.config();
 
@@ -25,6 +26,7 @@ app.get('/health', (req, res) => {
 
 // Routes
 app.use('/analytics', analyticsRoutes);
+app.use('/admins', adminRoutes);
 
 // 404 handler
 app.use((req, res) => {

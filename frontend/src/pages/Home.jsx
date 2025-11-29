@@ -119,7 +119,7 @@ const Home = () => {
                     <label>From</label>
                     <input
                       type="text"
-                      placeholder="City or airport"
+                      placeholder="City (e.g., New York) or Airport (e.g., JFK)"
                       value={flightOrigin}
                       onChange={(e) => setFlightOrigin(e.target.value)}
                       required
@@ -129,7 +129,7 @@ const Home = () => {
                     <label>To</label>
                     <input
                       type="text"
-                      placeholder="City or airport"
+                      placeholder="City (e.g., Los Angeles) or Airport (e.g., LAX)"
                       value={flightDestination}
                       onChange={(e) => setFlightDestination(e.target.value)}
                       required
@@ -187,7 +187,7 @@ const Home = () => {
                       checked={isRoundTrip}
                       onChange={(e) => setIsRoundTrip(e.target.checked)}
                     />
-                    Round trip
+                    <span>Round trip</span>
                   </label>
                 </div>
                 <button type="submit" className="btn-search">Search</button>
@@ -297,16 +297,6 @@ const Home = () => {
               <div className="feature-icon">🔒</div>
               <h3>Secure Booking</h3>
               <p>Your information is safe and secure with our encrypted booking system</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">⭐</div>
-              <h3>Verified Reviews</h3>
-              <p>Read authentic reviews from verified travelers</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">📱</div>
-              <h3>24/7 Support</h3>
-              <p>Get help anytime with our round-the-clock customer support</p>
             </div>
           </div>
         </div>

@@ -31,7 +31,12 @@ const initializeKafka = async () => {
 
 const publishUserEvent = async (eventType, data) => {
   try {
-    await producer.send({
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Kafka publish timeout after 3 seconds')), 3000);
+    });
+    
+    const sendPromise = producer.send({
       topic: KAFKA_TOPICS.USER_EVENTS,
       messages: [{
         key: data.user_id || (data._id ? data._id.toString() : ''),
@@ -42,9 +47,12 @@ const publishUserEvent = async (eventType, data) => {
         })
       }]
     });
+    
+    await Promise.race([sendPromise, timeoutPromise]);
     console.log(`[User Service] Published event: ${eventType}`);
   } catch (error) {
     console.error(`[User Service] Failed to publish event: ${error.message}`);
+    // Don't throw - allow the request to continue even if Kafka fails
   }
 };
 

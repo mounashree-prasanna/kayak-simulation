@@ -99,6 +99,14 @@
   overflow: hidden;
 }
 
+.hotel-image-large img,
+.car-image-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
 .image-placeholder-large {
   font-size: 8rem;
 }

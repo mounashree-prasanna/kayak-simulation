@@ -3,8 +3,12 @@ import api from '../../services/api'
 
 const initialState = {
   user: null,
-  token: localStorage.getItem('token') || null,
-  isAuthenticated: !!localStorage.getItem('token'),
+  admin: null,
+  accessToken: localStorage.getItem('accessToken') || null,
+  refreshToken: localStorage.getItem('refreshToken') || null,
+  isAuthenticated: !!(localStorage.getItem('accessToken') && localStorage.getItem('refreshToken')),
+  role: localStorage.getItem('role') || null, // 'user' or 'admin'
+  userRole: localStorage.getItem('userRole') || null, // Admin role: 'Super Admin', 'Listing Admin', etc.
   loading: false,
   error: null
 }
@@ -16,12 +20,20 @@ export const loginUser = createAsyncThunk(
       const response = await api.post('/users/login', { email, password })
       
       if (response.data.success && response.data.data) {
-        const { user, token } = response.data.data
+        const { user, admin, accessToken, refreshToken, role, userRole } = response.data.data
         
-        localStorage.setItem('token', token)
-        localStorage.setItem('user', JSON.stringify(user))
+        localStorage.setItem('accessToken', accessToken)
+        localStorage.setItem('refreshToken', refreshToken)
+        localStorage.setItem('role', role || 'user')
+        if (userRole) localStorage.setItem('userRole', userRole)
         
-        return { token, user }
+        if (admin) {
+          localStorage.setItem('admin', JSON.stringify(admin))
+          return { accessToken, refreshToken, admin, role: 'admin', userRole }
+        } else {
+          localStorage.setItem('user', JSON.stringify(user))
+          return { accessToken, refreshToken, user, role: 'user' }
+        }
       } else {
         return rejectWithValue('Invalid response from server')
       }
@@ -47,14 +59,35 @@ export const registerUser = createAsyncThunk(
       }
       
       const response = await api.post('/users', userData)
-      const registeredUser = response.data.data
-      const token = registeredUser.user_id
       
-      localStorage.setItem('token', token)
+      // Check if response has the expected structure
+      if (!response.data || !response.data.success) {
+        return rejectWithValue(response.data?.error || 'Registration failed: Invalid response from server')
+      }
+      
+      const registeredUser = response.data.data
+      
+      if (!registeredUser) {
+        return rejectWithValue('Registration failed: No user data received')
+      }
+      
+      if (!registeredUser.user_id) {
+        return rejectWithValue('Registration failed: Invalid user data received')
+      }
+      
+      // After registration, automatically log in the user
+      // Note: Registration endpoint doesn't return tokens, so we'll need to log in separately
+      // For now, we'll just store the user and they'll need to log in
       localStorage.setItem('user', JSON.stringify(registeredUser))
       
-      return { token, user: registeredUser }
+      return { user: registeredUser }
     } catch (error) {
+      // Handle network errors
+      if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
+        return rejectWithValue('Unable to connect to server. Please ensure the backend services are running.')
+      }
+      
+      // Handle API errors
       const errorMessage = error.response?.data?.error || error.message || 'Registration failed'
       return rejectWithValue(errorMessage)
     }
@@ -63,23 +96,81 @@ export const registerUser = createAsyncThunk(
 
 export const fetchUser = createAsyncThunk(
   'auth/fetchUser',
-  async (_, { rejectWithValue }) => {
+  async (_, { rejectWithValue, getState }) => {
     try {
+      const state = getState()
       const storedUser = localStorage.getItem('user')
-      if (storedUser) {
-        return JSON.parse(storedUser)
+      const accessToken = localStorage.getItem('accessToken')
+      const refreshToken = localStorage.getItem('refreshToken')
+      
+      // If we have tokens and user, restore state
+      if (storedUser && accessToken && refreshToken) {
+        const user = JSON.parse(storedUser)
+        // Set authorization header
+        api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`
+        return { user, accessToken, refreshToken }
       }
       
-      const token = localStorage.getItem('token')
-      if (token && token.includes('-')) {
-        const response = await api.get(`/users/${token}`)
+      // If we have a user_id from old token format, try to fetch user
+      const oldToken = localStorage.getItem('token')
+      if (oldToken && oldToken.includes('-')) {
+        const response = await api.get(`/users/${oldToken}`)
         localStorage.setItem('user', JSON.stringify(response.data.data))
-        return response.data.data
+        return { user: response.data.data }
       }
       
       return null
     } catch (error) {
       return rejectWithValue(error.response?.data?.error || 'Failed to fetch user')
+    }
+  }
+)
+
+export const refreshToken = createAsyncThunk(
+  'auth/refreshToken',
+  async (_, { rejectWithValue, getState }) => {
+    try {
+      const refreshTokenValue = localStorage.getItem('refreshToken')
+      
+      if (!refreshTokenValue) {
+        return rejectWithValue('No refresh token available')
+      }
+
+      const response = await api.post('/users/refresh', { refreshToken: refreshTokenValue })
+      
+      if (response.data.success && response.data.data) {
+        const { user, accessToken } = response.data.data
+        
+        localStorage.setItem('accessToken', accessToken)
+        localStorage.setItem('user', JSON.stringify(user))
+        
+        return { accessToken, user }
+      } else {
+        return rejectWithValue('Invalid response from server')
+      }
+    } catch (error) {
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to refresh token'
+      return rejectWithValue(errorMessage)
+    }
+  }
+)
+
+export const updateUser = createAsyncThunk(
+  'auth/updateUser',
+  async ({ user_id, updates }, { rejectWithValue }) => {
+    try {
+      const response = await api.put(`/users/${user_id}`, updates)
+      
+      if (response.data.success && response.data.data) {
+        const updatedUser = response.data.data
+        localStorage.setItem('user', JSON.stringify(updatedUser))
+        return updatedUser
+      } else {
+        return rejectWithValue('Invalid response from server')
+      }
+    } catch (error) {
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to update user'
+      return rejectWithValue(errorMessage)
     }
   }
 )
@@ -90,18 +181,29 @@ const authSlice = createSlice({
   reducers: {
     logout: (state) => {
       state.user = null
-      state.token = null
+      state.admin = null
+      state.accessToken = null
+      state.refreshToken = null
+      state.role = null
+      state.userRole = null
       state.isAuthenticated = false
-      localStorage.removeItem('token')
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('refreshToken')
       localStorage.removeItem('user')
+      localStorage.removeItem('admin')
+      localStorage.removeItem('role')
+      localStorage.removeItem('userRole')
       delete api.defaults.headers.common['Authorization']
     },
     setCredentials: (state, action) => {
-      const { token, user } = action.payload
-      state.token = token
+      const { accessToken, refreshToken, user } = action.payload
+      state.accessToken = accessToken
+      state.refreshToken = refreshToken || state.refreshToken
       state.user = user
       state.isAuthenticated = true
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      if (accessToken) {
+        api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`
+      }
     },
     clearError: (state) => {
       state.error = null
@@ -116,10 +218,19 @@ const authSlice = createSlice({
       })
       .addCase(loginUser.fulfilled, (state, action) => {
         state.loading = false
-        state.token = action.payload.token
-        state.user = action.payload.user
+        state.accessToken = action.payload.accessToken
+        state.refreshToken = action.payload.refreshToken
+        state.role = action.payload.role
+        state.userRole = action.payload.userRole
+        if (action.payload.user) {
+          state.user = action.payload.user
+          state.admin = null
+        } else if (action.payload.admin) {
+          state.admin = action.payload.admin
+          state.user = null
+        }
         state.isAuthenticated = true
-        api.defaults.headers.common['Authorization'] = `Bearer ${action.payload.token}`
+        api.defaults.headers.common['Authorization'] = `Bearer ${action.payload.accessToken}`
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false
@@ -132,10 +243,9 @@ const authSlice = createSlice({
       })
       .addCase(registerUser.fulfilled, (state, action) => {
         state.loading = false
-        state.token = action.payload.token
         state.user = action.payload.user
-        state.isAuthenticated = true
-        api.defaults.headers.common['Authorization'] = `Bearer ${action.payload.token}`
+        // Registration doesn't automatically log in - user needs to log in separately
+        state.isAuthenticated = false
       })
       .addCase(registerUser.rejected, (state, action) => {
         state.loading = false
@@ -147,16 +257,134 @@ const authSlice = createSlice({
       })
       .addCase(fetchUser.fulfilled, (state, action) => {
         state.loading = false
-        state.user = action.payload
-        state.isAuthenticated = !!action.payload
+        if (action.payload) {
+          if (typeof action.payload === 'object' && 'user' in action.payload) {
+            state.user = action.payload.user
+            state.accessToken = action.payload.accessToken || state.accessToken
+            state.refreshToken = action.payload.refreshToken || state.refreshToken
+            state.isAuthenticated = !!(action.payload.accessToken && action.payload.refreshToken)
+            if (action.payload.accessToken) {
+              api.defaults.headers.common['Authorization'] = `Bearer ${action.payload.accessToken}`
+            }
+          } else {
+            state.user = action.payload
+            state.isAuthenticated = !!(state.accessToken && state.refreshToken)
+          }
+        } else {
+          state.isAuthenticated = false
+        }
       })
       .addCase(fetchUser.rejected, (state, action) => {
         state.loading = false
         state.error = action.payload
         state.isAuthenticated = false
       })
+      // Update User
+      .addCase(updateUser.pending, (state) => {
+        state.loading = true
+        state.error = null
+      })
+      .addCase(updateUser.fulfilled, (state, action) => {
+        state.loading = false
+        state.user = action.payload
+      })
+      .addCase(updateUser.rejected, (state, action) => {
+        state.loading = false
+        state.error = action.payload
+      })
+      // Refresh Token
+      .addCase(refreshToken.pending, (state) => {
+        state.loading = true
+        state.error = null
+      })
+      .addCase(refreshToken.fulfilled, (state, action) => {
+        state.loading = false
+        state.accessToken = action.payload.accessToken
+        state.user = action.payload.user
+        state.isAuthenticated = true
+        api.defaults.headers.common['Authorization'] = `Bearer ${action.payload.accessToken}`
+      })
+      .addCase(refreshToken.rejected, (state, action) => {
+        state.loading = false
+        state.error = action.payload
+        // If refresh fails, clear tokens and log out
+        state.user = null
+        state.accessToken = null
+        state.refreshToken = null
+        state.isAuthenticated = false
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('refreshToken')
+        localStorage.removeItem('user')
+        delete api.defaults.headers.common['Authorization']
+      })
+      // Logout
+      .addCase(logoutUser.pending, (state) => {
+        state.loading = true
+      })
+      .addCase(logoutUser.fulfilled, (state) => {
+        state.loading = false
+        state.user = null
+        state.accessToken = null
+        state.refreshToken = null
+        state.isAuthenticated = false
+      })
+      .addCase(logoutUser.rejected, (state) => {
+        state.loading = false
+        state.user = null
+        state.accessToken = null
+        state.refreshToken = null
+        state.isAuthenticated = false
+      })
   }
 })
+
+export const logoutUser = createAsyncThunk(
+  'auth/logout',
+  async (_, { rejectWithValue, getState }) => {
+    try {
+      const state = getState()
+      const user = state.auth.user
+      const admin = state.auth.admin
+      
+      if (admin && admin.admin_id) {
+        // Call logout endpoint to clear refresh token on server
+        try {
+          await api.post('/users/logout', { admin_id: admin.admin_id })
+        } catch (error) {
+          console.error('Logout endpoint error:', error)
+        }
+      } else if (user && user.user_id) {
+        // Call logout endpoint to clear refresh token on server
+        try {
+          await api.post('/users/logout', { user_id: user.user_id })
+        } catch (error) {
+          console.error('Logout endpoint error:', error)
+        }
+      }
+      
+      // Clear local storage and state
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('refreshToken')
+      localStorage.removeItem('user')
+      localStorage.removeItem('admin')
+      localStorage.removeItem('role')
+      localStorage.removeItem('userRole')
+      delete api.defaults.headers.common['Authorization']
+      
+      return null
+    } catch (error) {
+      // Even if there's an error, clear local storage
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('refreshToken')
+      localStorage.removeItem('user')
+      localStorage.removeItem('admin')
+      localStorage.removeItem('role')
+      localStorage.removeItem('userRole')
+      delete api.defaults.headers.common['Authorization']
+      return rejectWithValue(error.message || 'Logout failed')
+    }
+  }
+)
 
 export const { logout, setCredentials, clearError } = authSlice.actions
 export default authSlice.reducer

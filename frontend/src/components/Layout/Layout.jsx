@@ -1,41 +1,61 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAppSelector, useAppDispatch } from '../../store/hooks'
-import { logout } from '../../store/slices/authSlice'
+import { logoutUser } from '../../store/slices/authSlice'
 import './Layout.css'
 
 const Layout = ({ children }) => {
-  const { user, isAuthenticated } = useAppSelector(state => state.auth)
+  const { user, admin, isAuthenticated, role } = useAppSelector(state => state.auth)
   const dispatch = useAppDispatch()
+  const navigate = useNavigate()
 
-  const handleLogout = () => {
-    dispatch(logout())
+  const handleLogout = async () => {
+    await dispatch(logoutUser())
+    navigate('/')
   }
+
+  const isAdmin = role === 'admin'
 
   return (
     <div className="layout">
       <header className="header">
         <div className="header-container">
-          <Link to="/" className="logo">
+          <Link to={isAdmin ? "/admin/dashboard" : "/"} className="logo">
             <span className="logo-text">KAYAK</span>
           </Link>
           
-          <nav className="nav">
-            <Link to="/flights" className="nav-link">Flights</Link>
-            <Link to="/hotels" className="nav-link">Hotels</Link>
-            <Link to="/cars" className="nav-link">Cars</Link>
-          </nav>
+          {!isAdmin && (
+            <nav className="nav">
+              <Link to="/flights" className="nav-link">Flights</Link>
+              <Link to="/hotels" className="nav-link">Hotels</Link>
+              <Link to="/cars" className="nav-link">Cars</Link>
+            </nav>
+          )}
 
           <div className="header-actions">
             {isAuthenticated ? (
               <>
-                <span className="user-name">
-                  {user?.first_name || user?.email || 'User'}
-                </span>
-                <Link to="/dashboard" className="nav-link">Dashboard</Link>
-                <Link to="/my-bookings" className="nav-link">My Bookings</Link>
-                <button onClick={handleLogout} className="btn-logout">
-                  Logout
-                </button>
+                {isAdmin ? (
+                  <>
+                    <span className="user-name">
+                      {admin?.first_name || admin?.email || 'Admin'}
+                    </span>
+                    <Link to="/admin/dashboard" className="nav-link">Dashboard</Link>
+                    <button onClick={handleLogout} className="btn-logout">
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="user-name">
+                      {user?.first_name || user?.email || 'User'}
+                    </span>
+                    <Link to="/dashboard" className="nav-link">Dashboard</Link>
+                    <Link to="/my-bookings" className="nav-link">My Bookings</Link>
+                    <button onClick={handleLogout} className="btn-logout">
+                      Logout
+                    </button>
+                  </>
+                )}
               </>
             ) : (
               <>

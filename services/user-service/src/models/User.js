@@ -61,7 +61,7 @@ const userSchema = new Schema({
   password: {
     type: String,
     required: true,
-    minlength: 6,
+    minlength: 8,
     select: false // Don't include password in queries by default
   },
   profile_image_url: {
@@ -70,6 +70,11 @@ const userSchema = new Schema({
   },
   payment_details: {
     type: paymentDetailsSchema
+  },
+  refresh_token: {
+    type: String,
+    trim: true,
+    default: null
   },
   created_at: {
     type: Date,

@@ -5,7 +5,7 @@ const imageSchema = new Schema({
   entity_type: {
     type: String,
     required: true,
-    enum: ['Hotel', 'Room', 'Car']
+    enum: ['Flight', 'Hotel', 'Room', 'Car']
   },
   entity_id: {
     type: String,
