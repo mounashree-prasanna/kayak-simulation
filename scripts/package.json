@@ -4,11 +4,16 @@
   "description": "Test harness for Kayak travel system",
   "main": "testHarness.js",
   "scripts": {
-    "seed": "node testHarness.js"
+    "seed": "node seedData.js",
+    "test": "node testHarness.js"
   },
   "dependencies": {
     "axios": "^1.6.5",
+<<<<<<< HEAD
     "mysql2": "^3.6.5"
+=======
+    "dotenv": "^16.6.1",
+    "mongoose": "^8.20.1"
+>>>>>>> origin/main
   }
 }
-

@@ -1,6 +1,5 @@
 import axios from 'axios'
 import { store } from '../store/store'
-import { logout } from '../store/slices/authSlice'
 import { addNotification } from '../store/slices/notificationSlice'
 
 const api = axios.create({
@@ -8,14 +7,15 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 15000, // 15 second timeout
 })
 
 // Request interceptor - add auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+    const accessToken = localStorage.getItem('accessToken')
+    if (accessToken) {
+      config.headers.Authorization = `Bearer ${accessToken}`
     }
     return config
   },
@@ -24,25 +24,73 @@ api.interceptors.request.use(
   }
 )
 
-// Response interceptor - handle errors
+// Response interceptor - handle errors and token refresh
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const originalRequest = error.config
     
-    // Don't redirect on login/register endpoints - let them handle their own errors
-    const isAuthEndpoint = originalRequest?.url?.includes('/login') || originalRequest?.url?.includes('/register') || originalRequest?.url?.includes('/users/login') || originalRequest?.url?.includes('/users/register')
+    // Don't retry on auth endpoints or if already retried
+    const isAuthEndpoint = originalRequest?.url?.includes('/login') || 
+                          originalRequest?.url?.includes('/register') || 
+                          originalRequest?.url?.includes('/users/login') || 
+                          originalRequest?.url?.includes('/users/register') ||
+                          originalRequest?.url?.includes('/users/refresh') ||
+                          originalRequest?.url?.includes('/users/logout')
     
-    // Handle 401 Unauthorized (but not for auth endpoints)
-    if (error.response && error.response.status === 401 && !isAuthEndpoint) {
-      store.dispatch(logout())
-      store.dispatch(addNotification({
-        type: 'error',
-        title: 'Session Expired',
-        message: 'Please log in again.',
-        severity: 'error'
-      }))
-      window.location.href = '/login'
+    // Handle 401 Unauthorized - try to refresh token
+    if (error.response && error.response.status === 401 && !isAuthEndpoint && !originalRequest._retry) {
+      originalRequest._retry = true
+      
+      const refreshTokenValue = localStorage.getItem('refreshToken')
+      
+      if (refreshTokenValue) {
+        try {
+          // Try to refresh the token
+          const refreshResponse = await axios.post(
+            `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/users/refresh`,
+            { refreshToken: refreshTokenValue },
+            { headers: { 'Content-Type': 'application/json' } }
+          )
+          
+          if (refreshResponse.data.success && refreshResponse.data.data) {
+            const { accessToken, user } = refreshResponse.data.data
+            
+            // Update tokens in localStorage
+            localStorage.setItem('accessToken', accessToken)
+            localStorage.setItem('user', JSON.stringify(user))
+            
+            // Update the original request with new token
+            originalRequest.headers.Authorization = `Bearer ${accessToken}`
+            
+            // Retry the original request
+            return api(originalRequest)
+          }
+        } catch (refreshError) {
+          // Refresh failed - log out user
+          const { logoutUser } = await import('../store/slices/authSlice')
+          store.dispatch(logoutUser())
+          store.dispatch(addNotification({
+            type: 'error',
+            title: 'Session Expired',
+            message: 'Please log in again.',
+            severity: 'error'
+          }))
+          window.location.href = '/login'
+          return Promise.reject(refreshError)
+        }
+      } else {
+        // No refresh token - log out
+        const { logoutUser } = await import('../store/slices/authSlice')
+        store.dispatch(logoutUser())
+        store.dispatch(addNotification({
+          type: 'error',
+          title: 'Session Expired',
+          message: 'Please log in again.',
+          severity: 'error'
+        }))
+        window.location.href = '/login'
+      }
     } 
     // Handle network errors
     else if (!error.response) {
