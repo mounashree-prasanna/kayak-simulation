@@ -13,23 +13,21 @@ export const loginUser = createAsyncThunk(
   'auth/login',
   async ({ email, password }, { rejectWithValue }) => {
     try {
-      // Simplified auth - in production this would be a proper endpoint
-      const mockUserId = `123-45-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`
-      const userData = {
-        email,
-        first_name: email.split('@')[0],
-        last_name: '',
-        user_id: mockUserId,
-        _id: mockUserId
+      const response = await api.post('/users/login', { email, password })
+      
+      if (response.data.success && response.data.data) {
+        const { user, token } = response.data.data
+        
+        localStorage.setItem('token', token)
+        localStorage.setItem('user', JSON.stringify(user))
+        
+        return { token, user }
+      } else {
+        return rejectWithValue('Invalid response from server')
       }
-      
-      const token = mockUserId
-      localStorage.setItem('token', token)
-      localStorage.setItem('user', JSON.stringify(userData))
-      
-      return { token, user: userData }
     } catch (error) {
-      return rejectWithValue(error.response?.data?.error || 'Login failed')
+      const errorMessage = error.response?.data?.error || error.message || 'Login failed'
+      return rejectWithValue(errorMessage)
     }
   }
 )
@@ -38,8 +36,14 @@ export const registerUser = createAsyncThunk(
   'auth/register',
   async (userData, { rejectWithValue }) => {
     try {
+      // Generate user_id (SSN format) if not provided
       if (!userData.user_id) {
         userData.user_id = `${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 90) + 10}-${Math.floor(Math.random() * 9000) + 1000}`
+      }
+      
+      // Ensure password is included
+      if (!userData.password) {
+        return rejectWithValue('Password is required')
       }
       
       const response = await api.post('/users', userData)
@@ -51,7 +55,8 @@ export const registerUser = createAsyncThunk(
       
       return { token, user: registeredUser }
     } catch (error) {
-      return rejectWithValue(error.response?.data?.error || 'Registration failed')
+      const errorMessage = error.response?.data?.error || error.message || 'Registration failed'
+      return rejectWithValue(errorMessage)
     }
   }
 )

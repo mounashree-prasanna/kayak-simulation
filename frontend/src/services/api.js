@@ -30,8 +30,11 @@ api.interceptors.response.use(
   (error) => {
     const originalRequest = error.config
     
-    // Handle 401 Unauthorized
-    if (error.response && error.response.status === 401) {
+    // Don't redirect on login/register endpoints - let them handle their own errors
+    const isAuthEndpoint = originalRequest?.url?.includes('/login') || originalRequest?.url?.includes('/register') || originalRequest?.url?.includes('/users/login') || originalRequest?.url?.includes('/users/register')
+    
+    // Handle 401 Unauthorized (but not for auth endpoints)
+    if (error.response && error.response.status === 401 && !isAuthEndpoint) {
       store.dispatch(logout())
       store.dispatch(addNotification({
         type: 'error',
