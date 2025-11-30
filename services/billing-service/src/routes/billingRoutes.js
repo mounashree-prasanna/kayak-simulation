@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   chargeBooking,
   getBilling,
+  getBillingByBookingId,
   searchBilling,
   getBillingByMonth,
   getUserBillings,
@@ -15,6 +16,7 @@ router.post('/charge', chargeBooking);
 // GET routes - specific routes must come before parameterized routes
 router.get('/search', searchBilling);
 router.get('/by-month', getBillingByMonth);
+router.get('/booking/:booking_id', getBillingByBookingId);
 router.get('/user/:user_id/stats', getMonthlyStats);
 router.get('/user/:user_id', getUserBillings);
 router.get('/:billing_id', getBilling);

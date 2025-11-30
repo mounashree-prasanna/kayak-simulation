@@ -8,42 +8,91 @@ const searchFlights = async (req, res) => {
 
     const query = {};
 
-    if (origin) {
-      const originTrimmed = origin.trim();
-      const originUpper = originTrimmed.toUpperCase();
-      // Check if it's an airport code (3-4 letters, all uppercase when converted)
-      // Airport codes are typically 3-4 characters
-      if (/^[A-Z]{3,4}$/.test(originUpper) && originTrimmed.length <= 4) {
-        // It's an airport code - search by airport
-        query.departure_airport = originUpper;
+    // City to airport code mapping
+    const cityToAirports = {
+      'new york': ['JFK', 'NYC', 'LGA', 'EWR'],
+      'los angeles': ['LAX'],
+      'san francisco': ['SFO'],
+      'chicago': ['ORD'],
+      'dallas': ['DFW'],
+      'denver': ['DEN'],
+      'seattle': ['SEA'],
+      'miami': ['MIA'],
+      'boston': ['BOS'],
+      'las vegas': ['LAS'],
+      'atlanta': ['ATL'],
+      'phoenix': ['PHX']
+    };
+
+    // Helper to resolve search term to airport codes
+    const resolveToAirportCodes = (searchTerm) => {
+      if (!searchTerm || !searchTerm.trim()) return null;
+      
+      const trimmed = searchTerm.trim();
+      const normalized = trimmed.toLowerCase();
+      
+      // Check if it's an airport code
+      if (/^[A-Z]{3,4}$/i.test(trimmed) && trimmed.length <= 4) {
+        return [trimmed.toUpperCase()];
+      }
+      
+      // Try to match city names
+      for (const [city, airports] of Object.entries(cityToAirports)) {
+        if (normalized.includes(city) || city.includes(normalized)) {
+          return airports;
+        }
+      }
+      
+      return null;
+    };
+
+    // Build origin condition
+    if (origin && origin.trim()) {
+      const airports = resolveToAirportCodes(origin);
+      if (airports) {
+        if (airports.length === 1) {
+          query.departure_airport = airports[0];
+        } else {
+          query.departure_airport = { $in: airports };
+        }
       } else {
-        // It's a city name - search by city (case-insensitive)
-        query.departure_city = { $regex: originTrimmed, $options: 'i' };
+        // Fallback: regex search on airport code field
+        query.departure_airport = { $regex: origin.trim(), $options: 'i' };
       }
     }
 
-    if (destination) {
-      const destTrimmed = destination.trim();
-      const destUpper = destTrimmed.toUpperCase();
-      // Check if it's an airport code (3-4 letters, all uppercase when converted)
-      if (/^[A-Z]{3,4}$/.test(destUpper) && destTrimmed.length <= 4) {
-        // It's an airport code - search by airport
-        query.arrival_airport = destUpper;
+    // Build destination condition
+    if (destination && destination.trim()) {
+      const airports = resolveToAirportCodes(destination);
+      if (airports) {
+        if (airports.length === 1) {
+          query.arrival_airport = airports[0];
+        } else {
+          query.arrival_airport = { $in: airports };
+        }
       } else {
-        // It's a city name - search by city (case-insensitive)
-        query.arrival_city = { $regex: destTrimmed, $options: 'i' };
+        // Fallback: regex search on airport code field
+        query.arrival_airport = { $regex: destination.trim(), $options: 'i' };
       }
     }
 
-    if (date) {
+    if (date && date.trim()) {
       const searchDate = new Date(date);
-      const nextDay = new Date(searchDate);
-      nextDay.setDate(nextDay.getDate() + 1);
+      if (!isNaN(searchDate.getTime())) {
+        const nextDay = new Date(searchDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+        query.departure_datetime = {
+          $gte: searchDate,
+          $lt: nextDay
+        };
+      }
+    } else if (origin || destination) {
+      // If origin/destination specified but no date, only show future flights
       query.departure_datetime = {
-        $gte: searchDate,
-        $lt: nextDay
+        $gte: new Date()
       };
     }
+    // If no origin/destination and no date, don't filter by date at all
 
     if (minPrice || maxPrice) {
       query.ticket_price = {};
@@ -51,12 +100,23 @@ const searchFlights = async (req, res) => {
       if (maxPrice) query.ticket_price.$lte = Number(maxPrice);
     }
 
-    if (flightClass) {
-      query.flight_class = flightClass;
+    if (flightClass && flightClass.trim()) {
+      // Normalize flight class: capitalize first letter to match database format
+      const normalizedClass = flightClass.charAt(0).toUpperCase() + flightClass.slice(1).toLowerCase();
+      // Map common variations
+      const classMap = {
+        'Economy': 'Economy',
+        'Business': 'Business',
+        'First': 'First'
+      };
+      const dbClass = classMap[normalizedClass] || normalizedClass;
+      query.flight_class = dbClass;
     }
 
     // Only show flights with available seats
     query.total_available_seats = { $gt: 0 };
+
+    console.log(`[Flight Controller] Search query:`, JSON.stringify(query, null, 2));
 
     let flights = await Flight.find(query)
       .sort({ departure_datetime: 1, ticket_price: 1 })

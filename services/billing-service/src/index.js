@@ -4,7 +4,7 @@ const dotenv = require('dotenv');
 const connectDB = require('./config/database'); // MongoDB for user references
 const { connectMySQL } = require('./config/mysql'); // MySQL for billings
 const { initializeKafka } = require('./config/kafka');
-const { connectRedis } = require('../../../shared/redisClient');
+const { connectRedis } = require('../shared/redisClient');
 const billingRoutes = require('./routes/billingRoutes');
 
 dotenv.config();

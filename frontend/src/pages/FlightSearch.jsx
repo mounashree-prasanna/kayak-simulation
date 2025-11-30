@@ -10,6 +10,7 @@ const FlightSearch = () => {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [flights, setFlights] = useState([])
+  const [flightImages, setFlightImages] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [sortBy, setSortBy] = useState('price')
@@ -118,6 +119,30 @@ const FlightSearch = () => {
       }
       
       setFlights(flightsData)
+      
+      // Fetch images for each flight
+      const imagesMap = {}
+      for (const flight of flightsData) {
+        try {
+          const flightId = flight._id || flight.flight_id
+          if (!flightId) continue
+          
+          const imageResponse = await api.get('/images/primary', {
+            params: { entity_type: 'Flight', entity_id: String(flightId) }
+          })
+          if (imageResponse.data.success && imageResponse.data.data) {
+            const imageUrl = imageResponse.data.data.image_url
+            if (flight._id) imagesMap[flight._id] = imageUrl
+            if (flight.flight_id) imagesMap[flight.flight_id] = imageUrl
+          }
+        } catch (imgErr) {
+          // Image not found, use placeholder - only log if it's not a 404
+          if (imgErr.response?.status !== 404) {
+            console.log(`Error fetching image for flight ${flight.flight_id || flight._id}:`, imgErr.message)
+          }
+        }
+      }
+      setFlightImages(imagesMap)
       setError(null)
     } catch (err) {
       if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
@@ -278,67 +303,80 @@ const FlightSearch = () => {
           {date && <p>{formatDate(date)} • {passengers} {passengers === 1 ? 'passenger' : 'passengers'}</p>}
         </div>
 
-        <div className="results-controls">
-          <div className="sort-controls">
-            <label>Sort by:</label>
-            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-              <option value="price">Price (Low to High)</option>
-              <option value="departure">Departure Time</option>
-              <option value="duration">Duration</option>
-            </select>
-          </div>
-          <div className="results-count">
-            {flights.length} {flights.length === 1 ? 'flight' : 'flights'} found
-          </div>
-        </div>
-
-        <div className="results-list">
-          {flights.length === 0 ? (
-            <div className="no-results">
-              <p>No flights found for your search criteria.</p>
-              <p>Try adjusting your search parameters.</p>
+        <div className="results-content">
+          <div className="results-controls">
+            <div className="sort-controls">
+              <label>Sort by:</label>
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option value="price">Price (Low to High)</option>
+                <option value="departure">Departure Time</option>
+                <option value="duration">Duration</option>
+              </select>
             </div>
-          ) : (
-            flights.map((flight) => (
-              <div key={flight._id || flight.flight_id} className="result-card">
-                <div className="result-main">
-                  <div className="flight-info">
-                    <div className="flight-time">
-                      <div className="time">{formatTime(flight.departure_datetime || flight.departure?.dateTime)}</div>
-                      <div className="airport">{flight.departure_airport || flight.departure?.airportCode}</div>
+            <div className="results-count">
+              {flights.length} {flights.length === 1 ? 'flight' : 'flights'} found
+            </div>
+          </div>
+
+          <div className="results-list">
+            {flights.length === 0 ? (
+              <div className="no-results">
+                <p>No flights found for your search criteria.</p>
+                <p>Try adjusting your search parameters.</p>
+              </div>
+            ) : (
+              flights.map((flight) => {
+                const flightId = flight._id || flight.flight_id
+                const imageUrl = flightImages[flightId]
+                return (
+                  <div key={flightId} className="result-card flight-card">
+                    <div className="flight-image">
+                      {imageUrl ? (
+                        <img src={imageUrl} alt={flight.airline || flight.airline_name} />
+                      ) : (
+                        <div className="image-placeholder">✈️</div>
+                      )}
                     </div>
-                    <div className="flight-duration">
-                      <div className="duration-line">
-                        <span>{calculateDuration(
-                          flight.departure_datetime || flight.departure?.dateTime,
-                          flight.arrival_datetime || flight.arrival?.dateTime
-                        )}</span>
+                    <div className="result-main">
+                      <div className="flight-info">
+                        <div className="flight-time">
+                          <div className="time">{formatTime(flight.departure_datetime || flight.departure?.dateTime)}</div>
+                          <div className="airport">{flight.departure_airport || flight.departure?.airportCode}</div>
+                        </div>
+                        <div className="flight-duration">
+                          <div className="duration-line">
+                            <span>{calculateDuration(
+                              flight.departure_datetime || flight.departure?.dateTime,
+                              flight.arrival_datetime || flight.arrival?.dateTime
+                            )}</span>
+                          </div>
+                        </div>
+                        <div className="flight-time">
+                          <div className="time">{formatTime(flight.arrival_datetime || flight.arrival?.dateTime)}</div>
+                          <div className="airport">{flight.arrival_airport || flight.arrival?.airportCode}</div>
+                        </div>
+                      </div>
+                      <div className="flight-details">
+                        <div className="airline">{flight.airline || flight.airline_name}</div>
+                        <div className="flight-number">{flight.flight_number}</div>
+                        <div className="flight-class">{flight.flight_class || flight.class}</div>
                       </div>
                     </div>
-                    <div className="flight-time">
-                      <div className="time">{formatTime(flight.arrival_datetime || flight.arrival?.dateTime)}</div>
-                      <div className="airport">{flight.arrival_airport || flight.arrival?.airportCode}</div>
+                    <div className="result-price">
+                      <div className="price">${flight.ticket_price || flight.price || 0}</div>
+                      <div className="price-label">per person</div>
+                      <Link 
+                        to={`/flights/${flightId}`}
+                        className="btn-select"
+                      >
+                        View Details
+                      </Link>
                     </div>
                   </div>
-                  <div className="flight-details">
-                    <div className="airline">{flight.airline || flight.airline_name}</div>
-                    <div className="flight-number">{flight.flight_number}</div>
-                    <div className="flight-class">{flight.flight_class || flight.class}</div>
-                  </div>
-                </div>
-                <div className="result-price">
-                  <div className="price">${flight.ticket_price || flight.price || 0}</div>
-                  <div className="price-label">per person</div>
-                  <Link 
-                    to={`/flights/${flight._id || flight.flight_id}`}
-                    className="btn-select"
-                  >
-                    Select
-                  </Link>
-                </div>
-              </div>
-            ))
-          )}
+                )
+              })
+            )}
+          </div>
         </div>
       </div>
     </div>

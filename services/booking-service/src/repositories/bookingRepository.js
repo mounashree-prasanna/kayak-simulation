@@ -25,9 +25,11 @@ class BookingRepository {
 
     if (connection) {
       const [result] = await connection.execute(sql, params);
+      console.log(`[Booking Repository] Created booking record: booking_id=${bookingData.booking_id}, insertId=${result.insertId}, affectedRows=${result.affectedRows}`);
       return { insertId: result.insertId, ...bookingData };
     } else {
       const [result] = await require('../config/mysql').pool.execute(sql, params);
+      console.log(`[Booking Repository] Created booking record: booking_id=${bookingData.booking_id}, insertId=${result.insertId}, affectedRows=${result.affectedRows}`);
       return { insertId: result.insertId, ...bookingData };
     }
   }

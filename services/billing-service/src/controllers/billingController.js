@@ -2,7 +2,7 @@ const BillingRepository = require('../repositories/billingRepository');
 const { executeTransaction } = require('../config/mysql');
 const { publishBillingEvent } = require('../config/kafka');
 const { generateBillingId, generateInvoiceNumber, processPayment } = require('../utils/billingUtils');
-const { get: redisGet, set: redisSet, del: redisDel } = require('../../../shared/redisClient');
+const { get: redisGet, set: redisSet, del: redisDel } = require('../../shared/redisClient');
 const axios = require('axios');
 
 const BOOKING_SERVICE_URL = process.env.BOOKING_SERVICE_URL || 'http://localhost:3003';
@@ -13,28 +13,18 @@ const chargeBooking = async (req, res) => {
 
     // Use transaction for ACID compliance
     const result = await executeTransaction(async (connection) => {
-      // Try to fetch booking from Booking Service, fallback to direct MySQL query
+      // Always fetch booking directly from MySQL to get the auto-increment id field
+      // This ensures we have all the data needed for the billing record
       let booking = null;
       try {
-        const bookingResponse = await axios.get(`${BOOKING_SERVICE_URL}/bookings/${booking_id}`, { timeout: 3000 });
-        booking = bookingResponse.data.data;
-      } catch (apiError) {
-        // Fallback to direct MySQL query if Booking Service is unavailable
-        console.warn('[Billing Service] Booking Service API failed, trying direct MySQL query:', apiError.message);
-        try {
-          const sql = 'SELECT * FROM bookings WHERE booking_id = ?';
-          const [rows] = await connection.execute(sql, [booking_id]);
-          if (rows[0]) {
-            booking = rows[0];
-            // Transform MySQL booking to match expected format
-            booking.booking_status = booking.booking_status || 'Pending';
-            booking.booking_type = booking.booking_type;
-            booking.total_price = booking.total_price || 0;
-          }
-        } catch (mysqlError) {
-          console.error('[Billing Service] Direct MySQL query also failed:', mysqlError.message);
-          throw new Error('Booking not found');
+        const sql = 'SELECT * FROM bookings WHERE booking_id = ?';
+        const [rows] = await connection.execute(sql, [booking_id]);
+        if (rows[0]) {
+          booking = rows[0];
         }
+      } catch (mysqlError) {
+        console.error('[Billing Service] MySQL query failed:', mysqlError.message);
+        throw new Error('Booking not found');
       }
 
       if (!booking) {
@@ -68,7 +58,7 @@ const chargeBooking = async (req, res) => {
         user_ref: booking.user_ref || null,
         booking_type: booking.booking_type,
         booking_id,
-        booking_ref: booking.id ? booking.id.toString() : null,
+        booking_ref: booking.id ? booking.id.toString() : null, // MySQL auto-increment id
         transaction_date: new Date(),
         total_amount_paid: amountToCharge, // Use booking price
         payment_method,
@@ -207,6 +197,36 @@ const getBilling = async (req, res) => {
     });
   } catch (error) {
     console.error('[Billing Service] Get billing error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch billing'
+    });
+  }
+};
+
+const getBillingByBookingId = async (req, res) => {
+  try {
+    const { booking_id } = req.params;
+
+    // Query MySQL for billing by booking_id
+    const billings = await BillingRepository.findByBookingId(booking_id);
+
+    if (!billings || billings.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Billing not found for this booking'
+      });
+    }
+
+    // Return the most recent billing (first in the sorted list)
+    const billing = billings[0];
+
+    res.status(200).json({
+      success: true,
+      data: billing
+    });
+  } catch (error) {
+    console.error('[Billing Service] Get billing by booking_id error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to fetch billing'
@@ -412,6 +432,7 @@ const getMonthlyStats = async (req, res) => {
 module.exports = {
   chargeBooking,
   getBilling,
+  getBillingByBookingId,
   searchBilling,
   getBillingByMonth,
   getUserBillings,

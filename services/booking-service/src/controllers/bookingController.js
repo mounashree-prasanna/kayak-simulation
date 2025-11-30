@@ -3,7 +3,7 @@ const { executeTransaction } = require('../config/mysql');
 const { validateUser, validateListing } = require('../utils/serviceClient');
 const { publishBookingEvent } = require('../config/kafka');
 const { generateBookingId } = require('../utils/bookingIdGenerator');
-const { get: redisGet, set: redisSet, del: redisDel } = require('../../../shared/redisClient');
+const { get: redisGet, set: redisSet, del: redisDel } = require('../../shared/redisClient');
 
 const createBooking = async (req, res) => {
   try {

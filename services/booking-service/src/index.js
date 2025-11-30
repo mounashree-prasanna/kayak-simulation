@@ -5,7 +5,7 @@ const connectDB = require('./config/database'); // MongoDB for user/listing refe
 const { connectMySQL } = require('./config/mysql'); // MySQL for bookings
 const { initializeKafka, consumer } = require('./config/kafka');
 const { startBillingEventConsumer } = require('./utils/billingEventHandler');
-const { connectRedis } = require('../../../shared/redisClient');
+const { connectRedis } = require('../shared/redisClient');
 const bookingRoutes = require('./routes/bookingRoutes');
 
 dotenv.config();

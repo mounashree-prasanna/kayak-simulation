@@ -170,10 +170,31 @@
   font-weight: 500;
   cursor: pointer;
   transition: background 0.3s;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .btn-cancel:hover {
   background: #d32f2f;
+}
+
+.btn-pay {
+  padding: 0.75rem 1.5rem;
+  background: #4ade80;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.3s;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.btn-pay:hover {
+  background: #22c55e;
 }
 
 .no-bookings {
@@ -269,9 +290,64 @@
 }
 
 .payment-summary {
-  padding: 1rem;
+  padding: 1.5rem;
   background: white;
-  border-radius: 4px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.invoice-header {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.invoice-number,
+.invoice-date {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+.invoice-label {
+  color: #666;
+  font-weight: 500;
+}
+
+.invoice-value {
+  color: #212121;
+  font-weight: 600;
+}
+
+.invoice-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.invoice-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 1rem;
+  color: #424242;
+}
+
+.invoice-total-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1rem;
+  margin-top: 0.5rem;
+  border-top: 2px solid #eee;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #212121;
 }
 
 .payment-item {
@@ -281,8 +357,28 @@
   font-size: 1.1rem;
 }
 
+.payment-method {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1rem;
+  margin-top: 1rem;
+  border-top: 1px solid #eee;
+  font-size: 0.95rem;
+}
+
+.payment-label {
+  color: #666;
+  font-weight: 500;
+}
+
+.payment-value {
+  color: #212121;
+  font-weight: 600;
+}
+
 .total-price {
-  font-size: 1.5rem;
+  font-size: 1.75rem;
   font-weight: 700;
   color: #ff5722;
 }

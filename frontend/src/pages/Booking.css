@@ -77,11 +77,27 @@
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 1rem;
+  cursor: text !important;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group input[type="date"] {
+  cursor: text !important;
 }
 
 .form-group input:focus {
   border-color: #667eea;
   outline: none;
+  cursor: text !important;
+}
+
+.form-group input:disabled {
+  cursor: not-allowed !important;
+}
+
+.form-group input::placeholder {
+  cursor: text;
 }
 
 .btn-submit {

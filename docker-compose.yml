@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # MongoDB Atlas is used instead of local MongoDB
   # Connection: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
@@ -11,12 +9,12 @@ services:
     image: mysql:8.0
     container_name: kayak-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_ROOT_PASSWORD: Meera@2632
       MYSQL_DATABASE: kayak_db
       MYSQL_USER: kayak_app
       MYSQL_PASSWORD: kayak_app_password
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./scripts/initMySQLWithUser.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -126,16 +124,14 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-      booking-service:
-        condition: service_started
     networks:
       - kayak-network
 
   # Booking Service
   booking-service:
     build:
-      context: ./services/booking-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./services/booking-service/Dockerfile
     container_name: kayak-booking-service
     environment:
       PORT: 3003
@@ -148,7 +144,7 @@ services:
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_USER: root
-      MYSQL_PASSWORD: rootpass
+      MYSQL_PASSWORD: Meera@2632
       MYSQL_DATABASE: kayak_db
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -161,16 +157,14 @@ services:
         condition: service_healthy
       user-service:
         condition: service_started
-      listing-service:
-        condition: service_started
     networks:
       - kayak-network
 
   # Billing Service
   billing-service:
     build:
-      context: ./services/billing-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./services/billing-service/Dockerfile
     container_name: kayak-billing-service
     environment:
       PORT: 3004
@@ -182,7 +176,7 @@ services:
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_USER: root
-      MYSQL_PASSWORD: rootpass
+      MYSQL_PASSWORD: Meera@2632
       MYSQL_DATABASE: kayak_db
       REDIS_HOST: redis
       REDIS_PORT: 6379

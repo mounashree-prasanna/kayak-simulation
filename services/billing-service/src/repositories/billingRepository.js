@@ -30,10 +30,12 @@ class BillingRepository {
     if (connection) {
       // Use provided connection (for transactions)
       const [result] = await connection.execute(sql, params);
+      console.log(`[Billing Repository] Created billing record: billing_id=${billingData.billing_id}, insertId=${result.insertId}, affectedRows=${result.affectedRows}`);
       return { insertId: result.insertId, ...billingData };
     } else {
       // Use connection pool - for INSERT, we need to use execute directly
       const [result] = await require('../config/mysql').pool.execute(sql, params);
+      console.log(`[Billing Repository] Created billing record: billing_id=${billingData.billing_id}, insertId=${result.insertId}, affectedRows=${result.affectedRows}`);
       return { insertId: result.insertId, ...billingData };
     }
   }

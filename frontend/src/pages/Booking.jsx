@@ -16,8 +16,27 @@ const Booking = () => {
     checkIn: '',
     checkOut: '',
     guests: [{ firstName: '', lastName: '', age: '' }],
+    pickupDate: '',
+    dropoffDate: '',
     driver: { firstName: '', lastName: '', licenseNumber: '', dateOfBirth: '' }
   })
+
+  // Helper function to get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date()
+    const year = today.getFullYear()
+    const month = String(today.getMonth() + 1).padStart(2, '0')
+    const day = String(today.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  // Helper function to format date for min attribute
+  const getMinDate = (startDate = null) => {
+    if (startDate) {
+      return startDate
+    }
+    return getTodayDate()
+  }
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -59,7 +78,30 @@ const Booking = () => {
         driver: { ...formData.driver, [e.target.name]: e.target.value }
       })
     } else {
-      setFormData({ ...formData, [e.target.name]: e.target.value })
+      const newValue = e.target.value
+      const fieldName = e.target.name
+      
+      // If check-in date changes and check-out is before new check-in, clear check-out
+      if (fieldName === 'checkIn' && formData.checkOut && newValue) {
+        const checkOutDate = new Date(formData.checkOut)
+        const newCheckInDate = new Date(newValue)
+        if (checkOutDate <= newCheckInDate) {
+          setFormData({ ...formData, [fieldName]: newValue, checkOut: '' })
+          return
+        }
+      }
+      
+      // If pick-up date changes and drop-off is before new pick-up, clear drop-off
+      if (fieldName === 'pickupDate' && formData.dropoffDate && newValue) {
+        const dropoffDate = new Date(formData.dropoffDate)
+        const newPickupDate = new Date(newValue)
+        if (dropoffDate <= newPickupDate) {
+          setFormData({ ...formData, [fieldName]: newValue, dropoffDate: '' })
+          return
+        }
+      }
+      
+      setFormData({ ...formData, [fieldName]: newValue })
     }
   }
 
@@ -203,6 +245,7 @@ const Booking = () => {
                             name="dateOfBirth"
                             value={passenger.dateOfBirth}
                             onChange={(e) => handleChange(e, index)}
+                            max={getTodayDate()}
                             required
                           />
                         </div>
@@ -233,6 +276,7 @@ const Booking = () => {
                         name="checkIn"
                         value={formData.checkIn}
                         onChange={handleChange}
+                        min={getTodayDate()}
                         required
                       />
                     </div>
@@ -243,6 +287,7 @@ const Booking = () => {
                         name="checkOut"
                         value={formData.checkOut}
                         onChange={handleChange}
+                        min={formData.checkIn || getTodayDate()}
                         required
                       />
                     </div>
@@ -300,6 +345,7 @@ const Booking = () => {
                         name="pickupDate"
                         value={formData.pickupDate}
                         onChange={handleChange}
+                        min={getTodayDate()}
                         required
                       />
                     </div>
@@ -310,6 +356,7 @@ const Booking = () => {
                         name="dropoffDate"
                         value={formData.dropoffDate}
                         onChange={handleChange}
+                        min={formData.pickupDate || getTodayDate()}
                         required
                       />
                     </div>
@@ -355,6 +402,7 @@ const Booking = () => {
                         name="dateOfBirth"
                         value={formData.driver.dateOfBirth}
                         onChange={(e) => handleChange(e, null, 'driver')}
+                        max={getTodayDate()}
                         required
                       />
                     </div>

@@ -68,6 +68,29 @@ input, select, textarea {
   transition: var(--transition);
 }
 
+input[type="text"],
+input[type="email"],
+input[type="number"],
+input[type="date"],
+input[type="password"],
+textarea {
+  cursor: text;
+}
+
+input[type="date"] {
+  cursor: pointer;
+}
+
+select {
+  cursor: pointer;
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+  cursor: not-allowed;
+}
+
 /* Premium Scrollbar */
 ::-webkit-scrollbar {
   width: 10px;

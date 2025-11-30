@@ -20,6 +20,7 @@ import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import MyBookings from './pages/MyBookings'
 import BookingDetails from './pages/BookingDetails'
+import Payment from './pages/Payment'
 import NotificationCenter from './components/NotificationCenter/NotificationCenter'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminListingManagement from './pages/admin/AdminListingManagement'
@@ -77,6 +78,7 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/my-bookings" element={<MyBookings />} />
             <Route path="/booking-details/:id" element={<BookingDetails />} />
+            <Route path="/payment/:bookingId" element={<Payment />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/listings" element={<AdminListingManagement />} />
             <Route path="/admin/users" element={<AdminUserManagement />} />
