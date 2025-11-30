@@ -1,9 +1,10 @@
 const mongoose = require('mongoose');
 const Hotel = require('../models/Hotel');
+const { filterByAvailability } = require('../utils/availabilityChecker');
 
 const searchHotels = async (req, res) => {
   try {
-    const { city, date, price_min, price_max, stars, wifi, breakfast_included, parking, pet_friendly, near_transit } = req.query;
+    const { city, checkIn, checkOut, date, price_min, price_max, stars, wifi, breakfast_included, parking, pet_friendly, near_transit } = req.query;
 
     const query = {};
 
@@ -28,9 +29,16 @@ const searchHotels = async (req, res) => {
     if (pet_friendly === 'true') query['amenities.pet_friendly'] = true;
     if (near_transit === 'true') query['amenities.near_transit'] = true;
 
-    const hotels = await Hotel.find(query)
+    let hotels = await Hotel.find(query)
       .sort({ hotel_rating: -1, price_per_night: 1 })
       .limit(100);
+
+    // Filter by booking availability if check-in/check-out dates are provided
+    const startDate = checkIn || date;
+    const endDate = checkOut;
+    if (startDate && endDate) {
+      hotels = await filterByAvailability(hotels, 'Hotel', new Date(startDate), new Date(endDate));
+    }
 
     res.status(200).json({
       success: true,

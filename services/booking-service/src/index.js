@@ -3,7 +3,9 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/database'); // MongoDB for user/listing references
 const { connectMySQL } = require('./config/mysql'); // MySQL for bookings
-const { initializeKafka } = require('./config/kafka');
+const { initializeKafka, consumer } = require('./config/kafka');
+const { startBillingEventConsumer } = require('./utils/billingEventHandler');
+const { connectRedis } = require('../../../shared/redisClient');
 const bookingRoutes = require('./routes/bookingRoutes');
 
 dotenv.config();
@@ -52,7 +54,17 @@ const startServer = async () => {
     await connectDB();
     // Connect to MySQL (for bookings - ACID compliance)
     await connectMySQL();
+    // Connect to Redis (for caching)
+    try {
+      await connectRedis();
+      console.log('[Booking Service] Redis connected for caching');
+    } catch (redisError) {
+      console.warn('[Booking Service] Redis connection failed, continuing without cache:', redisError.message);
+    }
+    // Initialize Kafka (producer and consumer)
     await initializeKafka();
+    // Start consuming billing events (Saga pattern)
+    await startBillingEventConsumer(consumer);
     
     app.listen(PORT, () => {
       console.log(`[Booking Service] Server running on port ${PORT}`);

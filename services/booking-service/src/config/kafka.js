@@ -15,11 +15,17 @@ const kafka = new Kafka({
 });
 
 const producer = kafka.producer();
+const consumer = kafka.consumer({ groupId: 'booking-service-group' });
 
 const initializeKafka = async () => {
   try {
     await producer.connect();
     console.log('[Booking Service] Kafka producer connected');
+    
+    // Connect consumer for billing events (Saga pattern)
+    await consumer.connect();
+    await consumer.subscribe({ topics: [KAFKA_TOPICS.BILLING_EVENTS] });
+    console.log('[Booking Service] Kafka consumer connected and subscribed to billing.events');
   } catch (error) {
     console.error(`[Booking Service] Kafka initialization error: ${error.message}`);
   }
@@ -46,6 +52,7 @@ const publishBookingEvent = async (eventType, data) => {
 
 module.exports = {
   producer,
+  consumer,
   initializeKafka,
   publishBookingEvent
 };

@@ -15,7 +15,8 @@
     "dotenv": "^16.3.1",
     "cors": "^2.8.5",
     "kafkajs": "^2.2.4",
-    "axios": "^1.6.5"
+    "axios": "^1.6.5",
+    "redis": "^4.6.12"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

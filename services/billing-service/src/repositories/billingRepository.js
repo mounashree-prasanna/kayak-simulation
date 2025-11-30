@@ -74,12 +74,13 @@ class BillingRepository {
       params.push(filters.status);
     }
 
-    if (filters.startDate) {
+    if (filters.startDate && filters.endDate) {
+      sql += ' AND transaction_date BETWEEN ? AND ?';
+      params.push(filters.startDate, filters.endDate);
+    } else if (filters.startDate) {
       sql += ' AND transaction_date >= ?';
       params.push(filters.startDate);
-    }
-
-    if (filters.endDate) {
+    } else if (filters.endDate) {
       sql += ' AND transaction_date <= ?';
       params.push(filters.endDate);
     }
@@ -93,6 +94,85 @@ class BillingRepository {
     } else {
       const rows = await query(sql, params);
       return rows.map(row => this.parseBilling(row));
+    }
+  }
+
+  // General search without requiring user_id (for admin searches)
+  static async search(filters = {}, connection = null) {
+    let sql = 'SELECT * FROM billings WHERE 1=1';
+    const params = [];
+
+    if (filters.user_id) {
+      sql += ' AND user_id = ?';
+      params.push(filters.user_id);
+    }
+
+    if (filters.status) {
+      sql += ' AND transaction_status = ?';
+      params.push(filters.status);
+    }
+
+    if (filters.startDate && filters.endDate) {
+      sql += ' AND transaction_date BETWEEN ? AND ?';
+      params.push(filters.startDate, filters.endDate);
+    } else if (filters.startDate) {
+      sql += ' AND transaction_date >= ?';
+      params.push(filters.startDate);
+    } else if (filters.endDate) {
+      sql += ' AND transaction_date <= ?';
+      params.push(filters.endDate);
+    }
+
+    sql += ' ORDER BY transaction_date DESC LIMIT ?';
+    params.push(filters.limit || 100);
+
+    if (connection) {
+      const [rows] = await connection.execute(sql, params);
+      return rows.map(row => this.parseBilling(row));
+    } else {
+      const rows = await query(sql, params);
+      return rows.map(row => this.parseBilling(row));
+    }
+  }
+
+  // Get monthly aggregated stats for a user
+  static async getMonthlyStats(user_id, year, month, connection = null) {
+    const startDate = new Date(Number(year), Number(month) - 1, 1);
+    const endDate = new Date(Number(year), Number(month), 1);
+
+    const sql = `
+      SELECT 
+        COUNT(*) as total_transactions,
+        SUM(CASE WHEN transaction_status = 'Success' THEN 1 ELSE 0 END) as successful_transactions,
+        SUM(CASE WHEN transaction_status = 'Failed' THEN 1 ELSE 0 END) as failed_transactions,
+        SUM(CASE WHEN transaction_status = 'Success' THEN total_amount_paid ELSE 0 END) as total_amount,
+        AVG(CASE WHEN transaction_status = 'Success' THEN total_amount_paid ELSE NULL END) as average_amount
+      FROM billings
+      WHERE user_id = ? 
+        AND transaction_date >= ? 
+        AND transaction_date < ?
+    `;
+
+    const params = [user_id, startDate, endDate];
+
+    if (connection) {
+      const [rows] = await connection.execute(sql, params);
+      return rows[0] || {
+        total_transactions: 0,
+        successful_transactions: 0,
+        failed_transactions: 0,
+        total_amount: 0,
+        average_amount: 0
+      };
+    } else {
+      const rows = await query(sql, params);
+      return rows[0] || {
+        total_transactions: 0,
+        successful_transactions: 0,
+        failed_transactions: 0,
+        total_amount: 0,
+        average_amount: 0
+      };
     }
   }
 

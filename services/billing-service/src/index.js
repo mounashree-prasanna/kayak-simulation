@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const connectDB = require('./config/database'); // MongoDB for user references
 const { connectMySQL } = require('./config/mysql'); // MySQL for billings
 const { initializeKafka } = require('./config/kafka');
+const { connectRedis } = require('../../../shared/redisClient');
 const billingRoutes = require('./routes/billingRoutes');
 
 dotenv.config();
@@ -52,6 +53,13 @@ const startServer = async () => {
     await connectDB();
     // Connect to MySQL (for billings - ACID compliance)
     await connectMySQL();
+    // Connect to Redis (for caching)
+    try {
+      await connectRedis();
+      console.log('[Billing Service] Redis connected for caching');
+    } catch (redisError) {
+      console.warn('[Billing Service] Redis connection failed, continuing without cache:', redisError.message);
+    }
     await initializeKafka();
     
     app.listen(PORT, () => {

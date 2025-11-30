@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Car = require('../models/Car');
+const { filterByAvailability } = require('../utils/availabilityChecker');
 
 const searchCars = async (req, res) => {
   try {
@@ -23,14 +24,14 @@ const searchCars = async (req, res) => {
       query.car_type = new RegExp(car_type, 'i');
     }
 
-    // Note: Date-based availability filtering would require checking bookings
-    // For now, we filter by availability_status only
-    // pickupDate and dropoffDate are accepted but not used for filtering yet
-    // This can be enhanced later by integrating with booking service
-
-    const cars = await Car.find(query)
+    let cars = await Car.find(query)
       .sort({ car_rating: -1, daily_rental_price: 1 })
       .limit(100);
+
+    // Filter by booking availability if pickup/dropoff dates are provided
+    if (pickupDate && dropoffDate) {
+      cars = await filterByAvailability(cars, 'Car', new Date(pickupDate), new Date(dropoffDate));
+    }
 
     res.status(200).json({
       success: true,

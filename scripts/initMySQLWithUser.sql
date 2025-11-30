@@ -1,10 +1,19 @@
 -- MySQL Database Initialization Script for Kayak Project
--- This script creates the database and tables for bookings and billings
+-- This script creates the database, app user, and tables for bookings and billings
 
 -- Create database if it doesn't exist
 CREATE DATABASE IF NOT EXISTS kayak_db 
 CHARACTER SET utf8mb4 
 COLLATE utf8mb4_unicode_ci;
+
+-- Create app user if it doesn't exist
+CREATE USER IF NOT EXISTS 'kayak_app'@'%' IDENTIFIED BY 'kayak_app_password';
+
+-- Grant privileges to app user
+GRANT ALL PRIVILEGES ON kayak_db.* TO 'kayak_app'@'%';
+
+-- Flush privileges to apply changes
+FLUSH PRIVILEGES;
 
 -- Use the database
 USE kayak_db;
@@ -55,5 +64,5 @@ CREATE TABLE IF NOT EXISTS billings (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Show success message
-SELECT 'Database and tables created successfully!' AS message;
+SELECT 'Database, user, and tables created successfully!' AS message;
 

@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Flight = require('../models/Flight');
+const { filterByAvailability } = require('../utils/availabilityChecker');
 
 const searchFlights = async (req, res) => {
   try {
@@ -57,9 +58,43 @@ const searchFlights = async (req, res) => {
     // Only show flights with available seats
     query.total_available_seats = { $gt: 0 };
 
-    const flights = await Flight.find(query)
+    let flights = await Flight.find(query)
       .sort({ departure_datetime: 1, ticket_price: 1 })
       .limit(100);
+
+    console.log(`[Flight Controller] Found ${flights.length} flights matching query`);
+
+    // Filter by booking availability if date is provided
+    if (date) {
+      try {
+        const searchDate = new Date(date);
+        // Validate date
+        if (isNaN(searchDate.getTime())) {
+          console.warn(`[Flight Controller] Invalid date format: ${date}, skipping availability filter`);
+        } else {
+          const endDate = new Date(searchDate);
+          endDate.setDate(endDate.getDate() + 1); // Same day booking
+          
+          const beforeCount = flights.length;
+          console.log(`[Flight Controller] Filtering ${beforeCount} flights by availability for date: ${date}`);
+          
+          flights = await filterByAvailability(flights, 'Flight', searchDate, endDate);
+          
+          const afterCount = flights.length;
+          console.log(`[Flight Controller] After availability filter: ${afterCount} flights (filtered out ${beforeCount - afterCount})`);
+          
+          // Safety check: if we had flights but filtered to 0, and it's likely an error, log warning
+          if (beforeCount > 0 && afterCount === 0) {
+            console.warn(`[Flight Controller] All ${beforeCount} flights were filtered out. This might indicate an issue with availability checking.`);
+          }
+        }
+      } catch (error) {
+        console.error('[Flight Controller] Error filtering by availability, returning all flights:', error.message);
+        // On error, return all flights (graceful degradation)
+      }
+    } else {
+      console.log('[Flight Controller] No date provided, skipping availability filter');
+    }
 
     res.status(200).json({
       success: true,

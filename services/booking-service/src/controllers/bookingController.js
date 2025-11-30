@@ -3,6 +3,7 @@ const { executeTransaction } = require('../config/mysql');
 const { validateUser, validateListing } = require('../utils/serviceClient');
 const { publishBookingEvent } = require('../config/kafka');
 const { generateBookingId } = require('../utils/bookingIdGenerator');
+const { get: redisGet, set: redisSet, del: redisDel } = require('../../../shared/redisClient');
 
 const createBooking = async (req, res) => {
   try {
@@ -30,6 +31,58 @@ const createBooking = async (req, res) => {
         throw new Error(`${booking_type} not found`);
       }
 
+      // Check availability for the requested dates
+      const startDate = new Date(start_date);
+      const endDate = new Date(end_date);
+      
+      // Check for date conflicts with existing bookings
+      const hasConflict = await BookingRepository.hasDateConflict(
+        booking_type,
+        reference_id,
+        startDate,
+        endDate,
+        null,
+        connection
+      );
+
+      if (hasConflict) {
+        // For flights: check if seats are available
+        if (booking_type === 'Flight') {
+          const bookingCount = await BookingRepository.getBookingCount(
+            booking_type,
+            reference_id,
+            startDate,
+            endDate,
+            connection
+          );
+          
+          // Check if available seats exceed booked seats
+          const availableSeats = listing.total_available_seats || 0;
+          if (bookingCount >= availableSeats) {
+            throw new Error(`Flight ${reference_id} is fully booked for the selected dates`);
+          }
+        }
+        // For hotels: check if rooms are available
+        else if (booking_type === 'Hotel') {
+          const bookingCount = await BookingRepository.getBookingCount(
+            booking_type,
+            reference_id,
+            startDate,
+            endDate,
+            connection
+          );
+          
+          const totalRooms = listing.number_of_rooms || 0;
+          if (bookingCount >= totalRooms) {
+            throw new Error(`Hotel ${reference_id} is fully booked for the selected dates`);
+          }
+        }
+        // For cars: check if car is available (only one booking per car per date range)
+        else if (booking_type === 'Car') {
+          throw new Error(`Car ${reference_id} is already booked for the selected dates`);
+        }
+      }
+
       // Generate booking ID
       const booking_id = generateBookingId();
 
@@ -55,6 +108,15 @@ const createBooking = async (req, res) => {
     // Publish Kafka event (after transaction commits)
     await publishBookingEvent('booking_created', result);
 
+    // Invalidate user bookings cache
+    try {
+      await redisDel(`booking:user:${result.user_id}:all`);
+      await redisDel(`booking:user:${result.user_id}:${result.booking_type}_`);
+      await redisDel(`booking:user:${result.user_id}:_${result.booking_status}`);
+    } catch (redisError) {
+      console.warn('[Booking Service] Failed to invalidate cache:', redisError.message);
+    }
+
     res.status(201).json({
       success: true,
       data: result
@@ -72,6 +134,24 @@ const getBooking = async (req, res) => {
   try {
     const { booking_id } = req.params;
 
+    // Check Redis cache first (SQL caching layer)
+    const cacheKey = `booking:${booking_id}`;
+    try {
+      const cached = await redisGet(cacheKey);
+      if (cached) {
+        const cachedBooking = JSON.parse(cached);
+        return res.status(200).json({
+          success: true,
+          data: cachedBooking,
+          cached: true
+        });
+      }
+    } catch (redisError) {
+      // If Redis fails, continue to MySQL query (graceful degradation)
+      console.warn('[Booking Service] Redis cache miss or error, falling back to MySQL:', redisError.message);
+    }
+
+    // Cache miss - query MySQL
     const booking = await BookingRepository.findByBookingId(booking_id);
 
     if (!booking) {
@@ -98,6 +178,14 @@ const getBooking = async (req, res) => {
       booking_id: booking.booking_id
     };
 
+    // Cache the result in Redis with 60s TTL
+    try {
+      await redisSet(cacheKey, JSON.stringify(transformedBooking), 60);
+    } catch (redisError) {
+      // Log but don't fail the request if caching fails
+      console.warn('[Booking Service] Failed to cache booking:', redisError.message);
+    }
+
     res.status(200).json({
       success: true,
       data: transformedBooking
@@ -116,6 +204,28 @@ const getUserBookings = async (req, res) => {
     const { user_id } = req.params;
     const { type, status } = req.query;
 
+    // Build cache key including filters for proper cache isolation
+    const filterKey = type || status ? `${type || ''}_${status || ''}` : 'all';
+    const cacheKey = `booking:user:${user_id}:${filterKey}`;
+
+    // Check Redis cache first (SQL caching layer)
+    try {
+      const cached = await redisGet(cacheKey);
+      if (cached) {
+        const cachedBookings = JSON.parse(cached);
+        return res.status(200).json({
+          success: true,
+          count: cachedBookings.length,
+          data: cachedBookings,
+          cached: true
+        });
+      }
+    } catch (redisError) {
+      // If Redis fails, continue to MySQL query (graceful degradation)
+      console.warn('[Booking Service] Redis cache miss or error, falling back to MySQL:', redisError.message);
+    }
+
+    // Cache miss - query MySQL
     const filters = {};
     if (type) filters.type = type;
     if (status) filters.status = status;
@@ -134,6 +244,14 @@ const getUserBookings = async (req, res) => {
       booking_status: booking.booking_status,
       booking_id: booking.booking_id
     }));
+
+    // Cache the result in Redis with 60s TTL
+    try {
+      await redisSet(cacheKey, JSON.stringify(transformedBookings), 60);
+    } catch (redisError) {
+      // Log but don't fail the request if caching fails
+      console.warn('[Booking Service] Failed to cache user bookings:', redisError.message);
+    }
 
     res.status(200).json({
       success: true,
@@ -174,6 +292,17 @@ const cancelBooking = async (req, res) => {
     // Publish Kafka event (after transaction commits)
     await publishBookingEvent('booking_cancelled', result);
 
+    // Invalidate caches
+    try {
+      await redisDel(`booking:${result.booking_id}`);
+      await redisDel(`booking:user:${result.user_id}:all`);
+      await redisDel(`booking:user:${result.user_id}:${result.booking_type}_`);
+      await redisDel(`booking:user:${result.user_id}:_${result.booking_status}`);
+      await redisDel(`booking:user:${result.user_id}:_Cancelled`);
+    } catch (redisError) {
+      console.warn('[Booking Service] Failed to invalidate cache:', redisError.message);
+    }
+
     res.status(200).json({
       success: true,
       data: result,
@@ -213,6 +342,17 @@ const confirmBooking = async (req, res) => {
     // Publish Kafka event (after transaction commits)
     await publishBookingEvent('booking_confirmed', result);
 
+    // Invalidate caches
+    try {
+      await redisDel(`booking:${result.booking_id}`);
+      await redisDel(`booking:user:${result.user_id}:all`);
+      await redisDel(`booking:user:${result.user_id}:${result.booking_type}_`);
+      await redisDel(`booking:user:${result.user_id}:_${result.booking_status}`);
+      await redisDel(`booking:user:${result.user_id}:_Confirmed`);
+    } catch (redisError) {
+      console.warn('[Booking Service] Failed to invalidate cache:', redisError.message);
+    }
+
     res.status(200).json({
       success: true,
       data: result,
@@ -227,11 +367,80 @@ const confirmBooking = async (req, res) => {
   }
 };
 
+const checkAvailability = async (req, res) => {
+  try {
+    const { booking_type, reference_id, start_date, end_date } = req.query;
+
+    if (!booking_type || !reference_id || !start_date || !end_date) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required parameters: booking_type, reference_id, start_date, end_date'
+      });
+    }
+
+    if (!['Flight', 'Hotel', 'Car'].includes(booking_type)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid booking_type. Must be Flight, Hotel, or Car'
+      });
+    }
+
+    const startDate = new Date(start_date);
+    const endDate = new Date(end_date);
+
+    // Check for date conflicts
+    const hasConflict = await BookingRepository.hasDateConflict(
+      booking_type,
+      reference_id,
+      startDate,
+      endDate
+    );
+
+    const bookingCount = await BookingRepository.getBookingCount(
+      booking_type,
+      reference_id,
+      startDate,
+      endDate
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        available: !hasConflict,
+        booking_count: bookingCount,
+        has_conflict: hasConflict
+      }
+    });
+  } catch (error) {
+    console.error('[Booking Service] Check availability error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to check availability'
+    });
+  }
+};
+
 const updateBookingStatus = async (booking_id, status) => {
   try {
+    let booking = null;
     await executeTransaction(async (connection) => {
       await BookingRepository.updateStatus(booking_id, status, connection);
+      // Fetch booking to get user_id for cache invalidation
+      booking = await BookingRepository.findByBookingId(booking_id, connection);
     });
+
+    // Invalidate caches after status update
+    if (booking) {
+      try {
+        await redisDel(`booking:${booking_id}`);
+        await redisDel(`booking:user:${booking.user_id}:all`);
+        await redisDel(`booking:user:${booking.user_id}:${booking.booking_type}_`);
+        await redisDel(`booking:user:${booking.user_id}:_${booking.booking_status}`);
+        await redisDel(`booking:user:${booking.user_id}:_${status}`);
+      } catch (redisError) {
+        console.warn('[Booking Service] Failed to invalidate cache:', redisError.message);
+      }
+    }
   } catch (error) {
     console.error('[Booking Service] Update booking status error:', error);
     throw error;
@@ -244,5 +453,6 @@ module.exports = {
   getUserBookings,
   cancelBooking,
   confirmBooking,
+  checkAvailability,
   updateBookingStatus
 };

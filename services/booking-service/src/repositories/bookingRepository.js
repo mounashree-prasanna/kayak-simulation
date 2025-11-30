@@ -132,6 +132,69 @@ class BookingRepository {
       return result.affectedRows > 0;
     }
   }
+
+  // Check if listing has conflicting bookings for date range
+  // Date ranges overlap if: new_start <= existing_end AND new_end >= existing_start
+  static async hasDateConflict(booking_type, reference_id, start_date, end_date, exclude_booking_id = null, connection = null) {
+    const sql = `
+      SELECT COUNT(*) as conflict_count
+      FROM bookings
+      WHERE booking_type = ?
+        AND reference_id = ?
+        AND booking_status IN ('Pending', 'Confirmed')
+        AND start_date <= ?
+        AND end_date >= ?
+        ${exclude_booking_id ? 'AND booking_id != ?' : ''}
+    `;
+    
+    const params = [
+      booking_type,
+      reference_id,
+      end_date,    // new_end >= existing_start
+      start_date   // new_start <= existing_end
+    ];
+    
+    if (exclude_booking_id) {
+      params.push(exclude_booking_id);
+    }
+
+    if (connection) {
+      const [rows] = await connection.execute(sql, params);
+      return rows[0].conflict_count > 0;
+    } else {
+      const rows = await query(sql, params);
+      return rows[0].conflict_count > 0;
+    }
+  }
+
+  // Get count of confirmed bookings for a listing and date range
+  // Date ranges overlap if: new_start <= existing_end AND new_end >= existing_start
+  static async getBookingCount(booking_type, reference_id, start_date, end_date, connection = null) {
+    const sql = `
+      SELECT COUNT(*) as booking_count
+      FROM bookings
+      WHERE booking_type = ?
+        AND reference_id = ?
+        AND booking_status IN ('Pending', 'Confirmed')
+        AND start_date <= ?
+        AND end_date >= ?
+    `;
+    
+    const params = [
+      booking_type,
+      reference_id,
+      end_date,    // new_end >= existing_start
+      start_date   // new_start <= existing_end
+    ];
+
+    if (connection) {
+      const [rows] = await connection.execute(sql, params);
+      return rows[0].booking_count || 0;
+    } else {
+      const rows = await query(sql, params);
+      return rows[0].booking_count || 0;
+    }
+  }
 }
 
 module.exports = BookingRepository;

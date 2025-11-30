@@ -2,6 +2,7 @@ const BillingRepository = require('../repositories/billingRepository');
 const { executeTransaction } = require('../config/mysql');
 const { publishBillingEvent } = require('../config/kafka');
 const { generateBillingId, generateInvoiceNumber, processPayment } = require('../utils/billingUtils');
+const { get: redisGet, set: redisSet, del: redisDel } = require('../../../shared/redisClient');
 const axios = require('axios');
 
 const BOOKING_SERVICE_URL = process.env.BOOKING_SERVICE_URL || 'http://localhost:3003';
@@ -12,9 +13,29 @@ const chargeBooking = async (req, res) => {
 
     // Use transaction for ACID compliance
     const result = await executeTransaction(async (connection) => {
-      // Fetch booking from Booking Service
-      const bookingResponse = await axios.get(`${BOOKING_SERVICE_URL}/bookings/${booking_id}`);
-      const booking = bookingResponse.data.data;
+      // Try to fetch booking from Booking Service, fallback to direct MySQL query
+      let booking = null;
+      try {
+        const bookingResponse = await axios.get(`${BOOKING_SERVICE_URL}/bookings/${booking_id}`, { timeout: 3000 });
+        booking = bookingResponse.data.data;
+      } catch (apiError) {
+        // Fallback to direct MySQL query if Booking Service is unavailable
+        console.warn('[Billing Service] Booking Service API failed, trying direct MySQL query:', apiError.message);
+        try {
+          const sql = 'SELECT * FROM bookings WHERE booking_id = ?';
+          const [rows] = await connection.execute(sql, [booking_id]);
+          if (rows[0]) {
+            booking = rows[0];
+            // Transform MySQL booking to match expected format
+            booking.booking_status = booking.booking_status || 'Pending';
+            booking.booking_type = booking.booking_type;
+            booking.total_price = booking.total_price || 0;
+          }
+        } catch (mysqlError) {
+          console.error('[Billing Service] Direct MySQL query also failed:', mysqlError.message);
+          throw new Error('Booking not found');
+        }
+      }
 
       if (!booking) {
         throw new Error('Booking not found');
@@ -24,8 +45,19 @@ const chargeBooking = async (req, res) => {
         throw new Error(`Booking is already ${booking.booking_status}`);
       }
 
-      // Process payment (mock)
-      const paymentResult = await processPayment(amount, payment_method);
+      // Use booking.total_price instead of request amount for consistency
+      // If amount is provided, validate it matches booking price (with small tolerance for rounding)
+      const bookingPrice = parseFloat(booking.total_price) || 0;
+      const requestedAmount = amount ? parseFloat(amount) : bookingPrice;
+      
+      // Validate amount matches booking price (allow 1% tolerance for rounding)
+      if (Math.abs(requestedAmount - bookingPrice) > bookingPrice * 0.01 && requestedAmount !== bookingPrice) {
+        console.warn(`[Billing Service] Amount mismatch: booking.total_price=${bookingPrice}, requested=${requestedAmount}. Using booking price.`);
+      }
+      const amountToCharge = bookingPrice;
+
+      // Process payment (mock) - use booking price
+      const paymentResult = await processPayment(amountToCharge, payment_method);
 
       const billing_id = generateBillingId();
       const invoice_number = generateInvoiceNumber();
@@ -38,7 +70,7 @@ const chargeBooking = async (req, res) => {
         booking_id,
         booking_ref: booking.id ? booking.id.toString() : null,
         transaction_date: new Date(),
-        total_amount_paid: amount,
+        total_amount_paid: amountToCharge, // Use booking price
         payment_method,
         transaction_status: paymentResult.success ? 'Success' : 'Failed',
         invoice_number,
@@ -47,47 +79,73 @@ const chargeBooking = async (req, res) => {
             {
               description: `${booking.booking_type} Booking`,
               quantity: 1,
-              unit_price: amount,
-              total: amount
+              unit_price: amountToCharge,
+              total: amountToCharge
             }
           ],
-          subtotal: amount,
-          tax: amount * 0.08, // 8% tax
-          total: amount * 1.08
+          subtotal: amountToCharge,
+          tax: amountToCharge * 0.08, // 8% tax
+          total: amountToCharge * 1.08
         }
       };
 
       const savedBilling = await BillingRepository.create(billingData, connection);
 
-      // Update booking status based on payment result
+      // Update booking status directly within the same transaction for ACID compliance
+      // This ensures both billing and booking updates succeed or fail together
+      let bookingStatusUpdate;
       if (paymentResult.success) {
-        // Update booking status to Confirmed
-        try {
-          await axios.put(`${BOOKING_SERVICE_URL}/bookings/${booking_id}/confirm`, {}, { timeout: 5000 });
-        } catch (error) {
-          console.error('Failed to update booking status, but payment succeeded');
-          // Transaction will still commit for billing, but booking update failed
+        // Update booking status to Confirmed within transaction
+        const updateSql = `UPDATE bookings SET booking_status = 'Confirmed', updated_at = NOW() WHERE booking_id = ?`;
+        const [updateResult] = await connection.execute(updateSql, [booking_id]);
+        if (updateResult.affectedRows === 0) {
+          throw new Error('Failed to update booking status to Confirmed');
         }
+        bookingStatusUpdate = 'Confirmed';
       } else {
-        // Update booking status to Cancelled
-        try {
-          await axios.put(`${BOOKING_SERVICE_URL}/bookings/${booking_id}/cancel`, {}, { timeout: 5000 });
-        } catch (error) {
-          console.error('Failed to update booking status');
+        // Update booking status to PaymentFailed within transaction
+        const updateSql = `UPDATE bookings SET booking_status = 'PaymentFailed', updated_at = NOW() WHERE booking_id = ?`;
+        const [updateResult] = await connection.execute(updateSql, [booking_id]);
+        if (updateResult.affectedRows === 0) {
+          throw new Error('Failed to update booking status to PaymentFailed');
         }
+        bookingStatusUpdate = 'PaymentFailed';
       }
 
       return {
         billing: savedBilling,
-        paymentResult
+        paymentResult,
+        bookingStatusUpdate
       };
     });
 
-    // Publish Kafka event (after transaction commits)
+    // Invalidate booking cache after transaction commits
+    try {
+      await redisDel(`booking:${booking_id}`);
+      await redisDel(`booking:user:${user_id}:all`);
+    } catch (redisError) {
+      console.warn('[Billing Service] Failed to invalidate booking cache:', redisError.message);
+    }
+
+    // Publish Kafka events (after transaction commits)
+    // Note: The booking service's billingEventHandler will listen to billing_success
+    // and emit booking_confirmed event after processing
     if (result.paymentResult.success) {
       await publishBillingEvent('billing_success', result.billing);
     } else {
       await publishBillingEvent('billing_failed', result.billing);
+    }
+
+    // Invalidate relevant caches
+    try {
+      await redisDel(`billing:${result.billing.billing_id}`);
+      await redisDel(`billing:user:${result.billing.user_id}`);
+      // Invalidate monthly stats cache
+      const date = new Date(result.billing.transaction_date);
+      const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      await redisDel(`billing:user:${result.billing.user_id}:${monthYear}`);
+    } catch (redisError) {
+      console.warn('[Billing Service] Failed to invalidate cache:', redisError.message);
     }
 
     res.status(result.paymentResult.success ? 201 : 402).json({
@@ -108,6 +166,24 @@ const getBilling = async (req, res) => {
   try {
     const { billing_id } = req.params;
 
+    // Check Redis cache first
+    const cacheKey = `billing:${billing_id}`;
+    try {
+      const cached = await redisGet(cacheKey);
+      if (cached) {
+        const cachedBilling = JSON.parse(cached);
+        return res.status(200).json({
+          success: true,
+          data: cachedBilling,
+          cached: true
+        });
+      }
+    } catch (redisError) {
+      // If Redis fails, continue to MySQL query (graceful degradation)
+      console.warn('[Billing Service] Redis cache miss or error, falling back to MySQL:', redisError.message);
+    }
+
+    // Cache miss - query MySQL
     const billing = await BillingRepository.findByBillingId(billing_id);
 
     if (!billing) {
@@ -115,6 +191,14 @@ const getBilling = async (req, res) => {
         success: false,
         error: 'Billing record not found'
       });
+    }
+
+    // Cache the result in Redis with 1 hour TTL
+    try {
+      await redisSet(cacheKey, JSON.stringify(billing), 3600);
+    } catch (redisError) {
+      // Log but don't fail the request if caching fails
+      console.warn('[Billing Service] Failed to cache billing:', redisError.message);
     }
 
     res.status(200).json({
@@ -132,7 +216,7 @@ const getBilling = async (req, res) => {
 
 const searchBilling = async (req, res) => {
   try {
-    const { date, month, year, user_id, status } = req.query;
+    const { from, to, user_id, status } = req.query;
 
     const filters = {};
 
@@ -144,24 +228,21 @@ const searchBilling = async (req, res) => {
       filters.status = status;
     }
 
-    if (date) {
-      filters.startDate = new Date(date);
-      const nextDay = new Date(filters.startDate);
-      nextDay.setDate(nextDay.getDate() + 1);
-      filters.endDate = nextDay;
-    } else if (month && year) {
-      filters.startDate = new Date(Number(year), Number(month) - 1, 1);
-      filters.endDate = new Date(Number(year), Number(month), 1);
+    // Support from/to date range (required format: YYYY-MM-DD)
+    if (from && to) {
+      filters.startDate = new Date(from);
+      filters.endDate = new Date(to);
+      // Set endDate to end of day for proper BETWEEN clause
+      filters.endDate.setHours(23, 59, 59, 999);
+    } else if (from) {
+      filters.startDate = new Date(from);
+    } else if (to) {
+      filters.endDate = new Date(to);
+      filters.endDate.setHours(23, 59, 59, 999);
     }
 
-    let billings;
-    if (user_id) {
-      billings = await BillingRepository.findByUserId(user_id, filters);
-    } else {
-      // For general search without user_id, we'd need a different method
-      // For now, return empty if no user_id
-      billings = [];
-    }
+    // Use general search method that supports both user_id and no user_id
+    const billings = await BillingRepository.search(filters);
 
     res.status(200).json({
       success: true,
@@ -200,8 +281,8 @@ const getBillingByMonth = async (req, res) => {
     if (user_id) {
       billings = await BillingRepository.findByUserId(user_id, filters);
     } else {
-      // For general search without user_id, we'd need a different method
-      billings = [];
+      // Use general search for admin queries without user_id
+      billings = await BillingRepository.search(filters);
     }
 
     res.status(200).json({
@@ -218,9 +299,121 @@ const getBillingByMonth = async (req, res) => {
   }
 };
 
+const getUserBillings = async (req, res) => {
+  try {
+    const { user_id } = req.params;
+    const { status } = req.query;
+
+    // Check Redis cache first
+    const filterKey = status ? `_${status}` : '';
+    const cacheKey = `billing:user:${user_id}${filterKey}`;
+    
+    try {
+      const cached = await redisGet(cacheKey);
+      if (cached) {
+        const cachedBillings = JSON.parse(cached);
+        return res.status(200).json({
+          success: true,
+          count: cachedBillings.length,
+          data: cachedBillings,
+          cached: true
+        });
+      }
+    } catch (redisError) {
+      // If Redis fails, continue to MySQL query (graceful degradation)
+      console.warn('[Billing Service] Redis cache miss or error, falling back to MySQL:', redisError.message);
+    }
+
+    // Cache miss - query MySQL
+    const filters = {};
+    if (status) {
+      filters.status = status;
+    }
+
+    const billings = await BillingRepository.findByUserId(user_id, filters);
+
+    // Cache the result in Redis with 30 minutes TTL
+    try {
+      await redisSet(cacheKey, JSON.stringify(billings), 1800);
+    } catch (redisError) {
+      // Log but don't fail the request if caching fails
+      console.warn('[Billing Service] Failed to cache user billings:', redisError.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      count: billings.length,
+      data: billings
+    });
+  } catch (error) {
+    console.error('[Billing Service] Get user billings error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch user billings'
+    });
+  }
+};
+
+const getMonthlyStats = async (req, res) => {
+  try {
+    const { user_id } = req.params;
+    const { year, month } = req.query;
+
+    if (!year || !month) {
+      return res.status(400).json({
+        success: false,
+        error: 'year and month query parameters are required'
+      });
+    }
+
+    // Check Redis cache first
+    const monthYear = `${year}-${String(month).padStart(2, '0')}`;
+    const cacheKey = `billing:user:${user_id}:${monthYear}`;
+    
+    try {
+      const cached = await redisGet(cacheKey);
+      if (cached) {
+        const cachedStats = JSON.parse(cached);
+        return res.status(200).json({
+          success: true,
+          data: cachedStats,
+          cached: true
+        });
+      }
+    } catch (redisError) {
+      // If Redis fails, continue to MySQL query (graceful degradation)
+      console.warn('[Billing Service] Redis cache miss or error, falling back to MySQL:', redisError.message);
+    }
+
+    // Cache miss - query MySQL
+    const stats = await BillingRepository.getMonthlyStats(user_id, year, month);
+
+    // Cache the result in Redis with 1 hour TTL
+    try {
+      await redisSet(cacheKey, JSON.stringify(stats), 3600);
+    } catch (redisError) {
+      // Log but don't fail the request if caching fails
+      console.warn('[Billing Service] Failed to cache monthly stats:', redisError.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error('[Billing Service] Get monthly stats error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch monthly stats'
+    });
+  }
+};
+
 module.exports = {
   chargeBooking,
   getBilling,
   searchBilling,
-  getBillingByMonth
+  getBillingByMonth,
+  getUserBillings,
+  getMonthlyStats
 };

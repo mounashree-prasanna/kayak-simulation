@@ -6,6 +6,46 @@ services:
   # MySQL Connection: root:rootpass@host.docker.internal:3306/kayak_db
   # change mysql password to your mysql password
 
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: kayak-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: kayak_db
+      MYSQL_USER: kayak_app
+      MYSQL_PASSWORD: kayak_app_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/initMySQLWithUser.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - kayak-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpass"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: --default-authentication-plugin=mysql_native_password
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: kayak-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - kayak-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
   # Zookeeper for Kafka
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
@@ -80,11 +120,14 @@ services:
       MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
       MONGODB_DB_NAME: kayak
       KAFKA_BROKER: kafka:9093
+      BOOKING_SERVICE_URL: http://booking-service:3003
     ports:
       - "3002:3002"
     depends_on:
       kafka:
         condition: service_healthy
+      booking-service:
+        condition: service_started
     networks:
       - kayak-network
 
@@ -102,14 +145,18 @@ services:
       KAFKA_BROKER: kafka:9093
       USER_SERVICE_URL: http://user-service:3001
       LISTING_SERVICE_URL: http://listing-service:3002
-      MYSQL_HOST: host.docker.internal
+      MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_USER: root
-      MYSQL_PASSWORD: rootpass  #change to your mysql password
+      MYSQL_PASSWORD: rootpass
       MYSQL_DATABASE: kayak_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     ports:
       - "3003:3003"
     depends_on:
+      mysql:
+        condition: service_healthy
       kafka:
         condition: service_healthy
       user-service:
@@ -132,14 +179,18 @@ services:
       MONGODB_DB_NAME: kayak
       KAFKA_BROKER: kafka:9093
       BOOKING_SERVICE_URL: http://booking-service:3003
-      MYSQL_HOST: host.docker.internal
+      MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_USER: root
-      MYSQL_PASSWORD: rootpass  #change to your mysql password
+      MYSQL_PASSWORD: rootpass
       MYSQL_DATABASE: kayak_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     ports:
       - "3004:3004"
     depends_on:
+      mysql:
+        condition: service_healthy
       kafka:
         condition: service_healthy
       booking-service:
@@ -239,6 +290,12 @@ services:
 networks:
   kayak-network:
     driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
 
 # MongoDB Atlas is used instead of local volumes
 # volumes:

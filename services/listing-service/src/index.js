@@ -5,6 +5,7 @@ const connectDB = require('./config/database');
 const flightRoutes = require('./routes/flightRoutes');
 const hotelRoutes = require('./routes/hotelRoutes');
 const carRoutes = require('./routes/carRoutes');
+const { initializeConsumer, stopConsumer } = require('./utils/bookingEventListener');
 
 dotenv.config();
 
@@ -57,6 +58,12 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     await connectDB();
+    console.log('[Listing Service] MongoDB connected');
+    
+    // Initialize Kafka consumer for availability sync (non-blocking)
+    initializeConsumer().catch(err => {
+      console.warn('[Listing Service] Kafka consumer initialization failed, continuing without real-time sync:', err.message);
+    });
     
     app.listen(PORT, () => {
       console.log(`[Listing Service] Server running on port ${PORT}`);
@@ -66,6 +73,19 @@ const startServer = async () => {
     process.exit(1);
   }
 };
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('[Listing Service] SIGTERM received, shutting down gracefully...');
+  await stopConsumer();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('[Listing Service] SIGINT received, shutting down gracefully...');
+  await stopConsumer();
+  process.exit(0);
+});
 
 startServer();
 

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { adminAuth } = require('../middleware/auth');
+const { authenticate, requireAdmin } = require('../middleware/auth');
 const {
   getTopProperties,
   getCityRevenue,
@@ -13,7 +13,8 @@ const {
 } = require('../controllers/analyticsController');
 
 // All routes require admin authentication
-router.use(adminAuth);
+router.use(authenticate);
+router.use(requireAdmin);
 
 router.get('/top-properties', getTopProperties);
 router.get('/city-revenue', getCityRevenue);
