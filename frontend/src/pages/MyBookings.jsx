@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { useAppSelector } from '../store/hooks'
 import api from '../services/api'
+import ReviewModal from '../components/ReviewModal/ReviewModal'
 import './MyBookings.css'
 
 const MyBookings = () => {
@@ -12,6 +13,8 @@ const MyBookings = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [filter, setFilter] = useState('all')
+  const [reviewModal, setReviewModal] = useState({ isOpen: false, booking: null, listing: null })
+  const [userReviews, setUserReviews] = useState({}) // Map of entity_id -> review
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -20,8 +23,25 @@ const MyBookings = () => {
     }
     if (isAuthenticated && user) {
       fetchBookings()
+      fetchUserReviews()
     }
   }, [isAuthenticated, authLoading, user, navigate, filter])
+
+  const fetchUserReviews = async () => {
+    if (!user) return
+    try {
+      const response = await api.get(`/reviews?user_id=${user.user_id || user._id}`)
+      const reviews = response.data.data || []
+      const reviewsMap = {}
+      reviews.forEach(review => {
+        const key = `${review.entity_type}_${review.entity_id}`
+        reviewsMap[key] = review
+      })
+      setUserReviews(reviewsMap)
+    } catch (err) {
+      console.warn('Failed to fetch user reviews:', err.message)
+    }
+  }
 
   const fetchBookings = async () => {
     try {
@@ -68,6 +88,99 @@ const MyBookings = () => {
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to cancel booking')
     }
+  }
+
+  const handleWriteReview = async (booking) => {
+    try {
+      // Fetch listing details
+      const bookingType = booking.type || booking.booking_type
+      const referenceId = booking.reference_id
+      
+      if (!bookingType || !referenceId) {
+        alert('Unable to load listing details for review')
+        return
+      }
+
+      let endpoint = ''
+      if (bookingType.toLowerCase() === 'flight') {
+        endpoint = `/flights/${referenceId}`
+      } else if (bookingType.toLowerCase() === 'hotel') {
+        endpoint = `/hotels/${referenceId}`
+      } else if (bookingType.toLowerCase() === 'car') {
+        endpoint = `/cars/${referenceId}`
+      }
+
+      if (!endpoint) {
+        alert('Invalid booking type')
+        return
+      }
+
+      const listingResponse = await api.get(endpoint)
+      const listing = listingResponse.data.data
+
+      // Get listing name
+      let listingName = ''
+      if (bookingType.toLowerCase() === 'flight') {
+        listingName = `${listing.airline || listing.airline_name} - ${listing.flight_number || referenceId}`
+      } else if (bookingType.toLowerCase() === 'hotel') {
+        listingName = listing.hotel_name || listing.name || 'Hotel'
+      } else if (bookingType.toLowerCase() === 'car') {
+        listingName = listing.vehicle_model || listing.car_model || listing.model || 'Car Rental'
+      }
+
+      setReviewModal({
+        isOpen: true,
+        booking: booking,
+        listing: {
+          ...listing,
+          name: listingName,
+          type: bookingType
+        }
+      })
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to load listing details')
+    }
+  }
+
+  const handleSubmitReview = async (reviewData) => {
+    if (!reviewModal.booking || !user) return
+
+    const bookingType = reviewModal.booking.type || reviewModal.booking.booking_type
+    const entityType = bookingType.charAt(0).toUpperCase() + bookingType.slice(1).toLowerCase()
+    const entityId = reviewModal.booking.reference_id
+
+    try {
+      await api.post('/reviews', {
+        user_id: user.user_id || user._id,
+        user_ref: user._id || user.user_id,
+        entity_type: entityType,
+        entity_id: entityId,
+        rating: reviewData.rating,
+        title: reviewData.title,
+        comment: reviewData.comment
+      })
+
+      // Refresh user reviews
+      await fetchUserReviews()
+      alert('Review submitted successfully!')
+    } catch (err) {
+      throw err
+    }
+  }
+
+  const hasUserReviewed = (booking) => {
+    if (!user) return false
+    const bookingType = booking.type || booking.booking_type
+    const entityType = bookingType.charAt(0).toUpperCase() + bookingType.slice(1).toLowerCase()
+    const entityId = booking.reference_id
+    const key = `${entityType}_${entityId}`
+    return !!userReviews[key]
+  }
+
+  const canWriteReview = (booking) => {
+    const status = (booking.status || booking.booking_status || '').toLowerCase()
+    const isConfirmed = status === 'confirmed' || status === 'completed'
+    return isConfirmed && !hasUserReviewed(booking)
   }
 
   if (authLoading || loading) {
@@ -190,6 +303,14 @@ const MyBookings = () => {
                   <Link to={`/booking-details/${booking._id || booking.booking_id}`} className="btn-view">
                     View Details
                   </Link>
+                  {canWriteReview(booking) && (
+                    <button
+                      onClick={() => handleWriteReview(booking)}
+                      className="btn-review"
+                    >
+                      Write Review
+                    </button>
+                  )}
                   {booking.status !== 'cancelled' && booking.status !== 'completed' && (
                     <button
                       onClick={() => handleCancel(booking._id || booking.booking_id)}
@@ -204,6 +325,16 @@ const MyBookings = () => {
           )}
         </div>
       </div>
+
+      {reviewModal.isOpen && reviewModal.booking && reviewModal.listing && (
+        <ReviewModal
+          isOpen={reviewModal.isOpen}
+          onClose={() => setReviewModal({ isOpen: false, booking: null, listing: null })}
+          onSubmit={handleSubmitReview}
+          entityType={reviewModal.listing.type}
+          entityName={reviewModal.listing.name}
+        />
+      )}
     </div>
   )
 }

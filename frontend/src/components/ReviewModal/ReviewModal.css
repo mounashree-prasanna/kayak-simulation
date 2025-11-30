@@ -1,0 +1,248 @@
+.review-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.review-modal {
+  background: white;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.review-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.review-modal-header h2 {
+  margin: 0;
+  font-size: 24px;
+  color: #333;
+}
+
+.review-modal-close {
+  background: none;
+  border: none;
+  font-size: 32px;
+  color: #666;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.review-modal-close:hover:not(:disabled) {
+  background-color: #f0f0f0;
+  color: #333;
+}
+
+.review-modal-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.review-modal-body {
+  padding: 24px;
+}
+
+.review-entity-info {
+  margin-bottom: 24px;
+  padding: 12px;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  color: #666;
+  font-size: 14px;
+}
+
+.review-entity-info strong {
+  color: #333;
+}
+
+.review-form-group {
+  margin-bottom: 20px;
+}
+
+.review-form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.rating-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rating-star {
+  background: none;
+  border: none;
+  font-size: 32px;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.2s;
+  filter: grayscale(100%);
+  opacity: 0.4;
+}
+
+.rating-star:hover:not(:disabled) {
+  transform: scale(1.1);
+}
+
+.rating-star.active {
+  filter: grayscale(0%);
+  opacity: 1;
+}
+
+.rating-star:disabled {
+  cursor: not-allowed;
+}
+
+.rating-value {
+  margin-left: 12px;
+  font-weight: 600;
+  color: #666;
+  font-size: 14px;
+}
+
+.review-form-group input[type="text"],
+.review-form-group textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.review-form-group input[type="text"]:focus,
+.review-form-group textarea:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.review-form-group input[type="text"]:disabled,
+.review-form-group textarea:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.review-form-group textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.char-count {
+  display: block;
+  text-align: right;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #999;
+}
+
+.review-error {
+  padding: 12px;
+  background-color: #fee;
+  border: 1px solid #fcc;
+  border-radius: 8px;
+  color: #c33;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.review-modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.review-modal-actions .btn-cancel {
+  padding: 10px 20px;
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  color: #333;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.review-modal-actions .btn-cancel:hover:not(:disabled) {
+  background-color: #e0e0e0;
+}
+
+.review-modal-actions .btn-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.review-modal-actions .btn-submit {
+  padding: 10px 20px;
+  background-color: #007bff;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.review-modal-actions .btn-submit:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+
+.review-modal-actions .btn-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: #ccc;
+}
+
+@media (max-width: 768px) {
+  .review-modal {
+    max-width: 100%;
+    margin: 10px;
+  }
+
+  .review-modal-header {
+    padding: 16px 20px;
+  }
+
+  .review-modal-body {
+    padding: 20px;
+  }
+
+  .rating-star {
+    font-size: 28px;
+  }
+}
+

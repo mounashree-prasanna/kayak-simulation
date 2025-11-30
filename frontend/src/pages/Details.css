@@ -270,6 +270,99 @@
   font-size: 0.9rem;
 }
 
+/* Reviews Section */
+.reviews-section {
+  margin-top: 2rem;
+}
+
+.reviews-summary {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.reviews-rating {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.rating-value-large {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #333;
+}
+
+.rating-stars-large {
+  font-size: 1.5rem;
+}
+
+.reviews-count {
+  color: #666;
+  font-size: 1rem;
+}
+
+.reviews-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.review-item {
+  padding: 1.5rem;
+  background: #f9f9f9;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.review-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.review-rating {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.review-rating .rating-number {
+  font-weight: 600;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.review-date {
+  color: #999;
+  font-size: 0.875rem;
+}
+
+.review-title {
+  font-size: 1.25rem;
+  color: #333;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.review-comment {
+  color: #666;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.no-reviews {
+  text-align: center;
+  padding: 2rem;
+  color: #999;
+  font-style: italic;
+}
+
 @media (max-width: 968px) {
   .details-content {
     grid-template-columns: 1fr;
@@ -286,6 +379,16 @@
 
   .details-price {
     text-align: left;
+  }
+
+  .reviews-rating {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .review-item-header {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 

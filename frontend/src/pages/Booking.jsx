@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAppSelector } from '../store/hooks'
 import api from '../services/api'
 import './Booking.css'
@@ -7,15 +7,22 @@ import './Booking.css'
 const Booking = () => {
   const { type, id } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { user, isAuthenticated } = useAppSelector(state => state.auth)
   const [item, setItem] = useState(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  
+  // Get guest count from URL params (for hotels) - used for capacity/pricing, but only collect primary guest info
+  const guestsParam = searchParams.get('guests')
+  const numGuests = guestsParam ? parseInt(guestsParam) : 1
+  
+  // Initialize form data - only primary guest info needed
   const [formData, setFormData] = useState({
     passengers: [{ firstName: '', lastName: '', dateOfBirth: '', passportNumber: '' }],
-    checkIn: '',
-    checkOut: '',
-    guests: [{ firstName: '', lastName: '', age: '' }],
+    checkIn: searchParams.get('checkIn') || '',
+    checkOut: searchParams.get('checkOut') || '',
+    guests: [{ firstName: '', lastName: '', age: '' }], // Only primary guest
     pickupDate: '',
     dropoffDate: '',
     driver: { firstName: '', lastName: '', licenseNumber: '', dateOfBirth: '' }
@@ -45,6 +52,22 @@ const Booking = () => {
     }
     fetchItem()
   }, [type, id, isAuthenticated, navigate])
+
+  // Update check-in/check-out dates when params change (for hotels)
+  useEffect(() => {
+    if (type === 'hotel') {
+      const checkIn = searchParams.get('checkIn') || ''
+      const checkOut = searchParams.get('checkOut') || ''
+      
+      if (checkIn || checkOut) {
+        setFormData(prev => ({
+          ...prev,
+          checkIn: checkIn || prev.checkIn,
+          checkOut: checkOut || prev.checkOut
+        }))
+      }
+    }
+  }, [searchParams, type])
 
   const fetchItem = async () => {
     try {
@@ -139,10 +162,25 @@ const Booking = () => {
 
       // Calculate dates and price based on type
       if (type === 'flight') {
-        // For flights, use current date as start and end (or you can add date selection)
-        const flightDate = new Date()
+        // For flights, use the flight's departure_datetime from the item
+        // If not available, try to get date from URL params or use current date as fallback
+        let flightDate = null
+        const dateParam = searchParams.get('date')
+        
+        if (item?.departure_datetime) {
+          // Use the flight's actual departure datetime
+          flightDate = new Date(item.departure_datetime)
+        } else if (dateParam) {
+          // Use date from URL params (from search)
+          const [year, month, day] = dateParam.split('-').map(Number)
+          flightDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
+        } else {
+          // Fallback to current date (shouldn't happen in normal flow)
+          flightDate = new Date()
+        }
+        
         bookingData.start_date = flightDate.toISOString()
-        bookingData.end_date = flightDate.toISOString()
+        bookingData.end_date = flightDate.toISOString() // Same day for flights
         bookingData.total_price = item?.ticket_price || 0
       } else if (type === 'hotel') {
         if (!formData.checkIn || !formData.checkOut) {
@@ -292,45 +330,48 @@ const Booking = () => {
                       />
                     </div>
                   </div>
-                  <h2>Guest Information</h2>
-                  {formData.guests.map((guest, index) => (
-                    <div key={index} className="guest-section">
-                      <h3>Guest {index + 1}</h3>
-                      <div className="form-row">
-                        <div className="form-group">
-                          <label>First Name</label>
-                          <input
-                            type="text"
-                            name="firstName"
-                            value={guest.firstName}
-                            onChange={(e) => handleChange(e, index)}
-                            required
-                          />
-                        </div>
-                        <div className="form-group">
-                          <label>Last Name</label>
-                          <input
-                            type="text"
-                            name="lastName"
-                            value={guest.lastName}
-                            onChange={(e) => handleChange(e, index)}
-                            required
-                          />
-                        </div>
-                        <div className="form-group">
-                          <label>Age</label>
-                          <input
-                            type="number"
-                            name="age"
-                            value={guest.age}
-                            onChange={(e) => handleChange(e, index)}
-                            required
-                            min="1"
-                          />
-                        </div>
+                  <h2>Primary Guest Information</h2>
+                  {numGuests > 1 && (
+                    <p className="guest-info-note">
+                      Booking for {numGuests} guests. Please provide information for the primary guest only.
+                    </p>
+                  )}
+                  <div className="guest-section">
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>First Name <span className="required">*</span></label>
+                        <input
+                          type="text"
+                          name="firstName"
+                          value={formData.guests[0].firstName}
+                          onChange={(e) => handleChange(e, 0)}
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Last Name <span className="required">*</span></label>
+                        <input
+                          type="text"
+                          name="lastName"
+                          value={formData.guests[0].lastName}
+                          onChange={(e) => handleChange(e, 0)}
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Age <span className="required">*</span></label>
+                        <input
+                          type="number"
+                          name="age"
+                          value={formData.guests[0].age}
+                          onChange={(e) => handleChange(e, 0)}
+                          required
+                          min="1"
+                          max="120"
+                        />
                       </div>
                     </div>
-                  ))}
+                  </div>
                 </>
               )}
 

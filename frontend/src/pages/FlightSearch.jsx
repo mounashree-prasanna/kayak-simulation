@@ -22,12 +22,23 @@ const FlightSearch = () => {
   const flightClassParam = searchParams.get('flightClass') || 'economy'
   const returnDateParam = searchParams.get('returnDate')
 
+  // Helper to parse date from YYYY-MM-DD string without timezone issues
+  const parseDateFromString = (dateString) => {
+    if (!dateString) return null
+    // Parse YYYY-MM-DD format as local date (not UTC)
+    const [year, month, day] = dateString.split('-').map(Number)
+    if (year && month && day) {
+      return new Date(year, month - 1, day)
+    }
+    return null
+  }
+
   // Search form state
   const [searchForm, setSearchForm] = useState({
     origin: originParam || '',
     destination: destinationParam || '',
-    date: dateParam ? new Date(dateParam) : null,
-    returnDate: returnDateParam ? new Date(returnDateParam) : null,
+    date: dateParam ? parseDateFromString(dateParam) : null,
+    returnDate: returnDateParam ? parseDateFromString(returnDateParam) : null,
     passengers: parseInt(passengersParam) || 1,
     flightClass: flightClassParam || 'economy',
     isRoundTrip: !!returnDateParam
@@ -40,7 +51,16 @@ const FlightSearch = () => {
   const flightClass = flightClassParam
 
   useEffect(() => {
-    fetchFlights()
+    // Only fetch flights if we have required search parameters
+    if (originParam && destinationParam) {
+      fetchFlights()
+    } else {
+      // If no search params, don't show error, just show empty state
+      setLoading(false)
+      setFlights([])
+      setError(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
   useEffect(() => {
@@ -48,8 +68,8 @@ const FlightSearch = () => {
     setSearchForm({
       origin: originParam || '',
       destination: destinationParam || '',
-      date: dateParam ? new Date(dateParam) : null,
-      returnDate: returnDateParam ? new Date(returnDateParam) : null,
+      date: dateParam ? parseDateFromString(dateParam) : null,
+      returnDate: returnDateParam ? parseDateFromString(returnDateParam) : null,
       passengers: parseInt(passengersParam) || 1,
       flightClass: flightClassParam || 'economy',
       isRoundTrip: !!returnDateParam
@@ -63,6 +83,15 @@ const FlightSearch = () => {
     }))
   }
 
+  // Helper function to format date as YYYY-MM-DD using local timezone (not UTC)
+  const formatDateLocal = (date) => {
+    if (!date) return null
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
   const handleSearchSubmit = (e) => {
     e.preventDefault()
     const params = new URLSearchParams({
@@ -73,29 +102,53 @@ const FlightSearch = () => {
     })
     
     if (searchForm.date) {
-      params.append('date', searchForm.date.toISOString().split('T')[0])
+      params.append('date', formatDateLocal(searchForm.date))
     }
     
     if (searchForm.isRoundTrip && searchForm.returnDate) {
-      params.append('returnDate', searchForm.returnDate.toISOString().split('T')[0])
+      params.append('returnDate', formatDateLocal(searchForm.returnDate))
     }
     
     navigate(`/flights?${params.toString()}`)
   }
 
   const fetchFlights = async () => {
+    // Validate required fields before making API call
+    if (!origin || !origin.trim() || !destination || !destination.trim()) {
+      setLoading(false)
+      setError('Please provide both origin and destination to search for flights.')
+      setFlights([])
+      return
+    }
+
     try {
       setLoading(true)
-      const params = {
-        origin,
-        destination,
-        date,
-        passengers,
-        flightClass
+      setError(null)
+      
+      // Build params object, only including non-empty values
+      const params = {}
+      if (origin && origin.trim()) params.origin = origin.trim()
+      if (destination && destination.trim()) params.destination = destination.trim()
+      if (date) {
+        // Ensure date is in YYYY-MM-DD format using local timezone
+        const dateObj = date instanceof Date ? date : new Date(date)
+        if (!isNaN(dateObj.getTime())) {
+          // Use local date components, not UTC, to avoid timezone shifts
+          const year = dateObj.getFullYear()
+          const month = String(dateObj.getMonth() + 1).padStart(2, '0')
+          const day = String(dateObj.getDate()).padStart(2, '0')
+          params.date = `${year}-${month}-${day}`
+        }
       }
+      if (passengers) params.passengers = passengers
+      if (flightClass) params.flightClass = flightClass
+      
+      console.log('[FlightSearch] Fetching flights with params:', params)
       
       const response = await api.get('/flights/search', { params })
       let flightsData = response.data.data || []
+      
+      console.log(`[FlightSearch] Received ${flightsData.length} flights from API`)
       
       // Sort flights - handle both field name variations
       if (sortBy === 'price') {
@@ -145,8 +198,11 @@ const FlightSearch = () => {
       setFlightImages(imagesMap)
       setError(null)
     } catch (err) {
+      console.error('[FlightSearch] Error fetching flights:', err)
       if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
         setError('Unable to connect to server. Please ensure the backend services are running.')
+      } else if (err.response?.status === 400) {
+        setError(err.response?.data?.error || 'Invalid search parameters. Please check your search criteria.')
       } else {
         setError(err.response?.data?.error || err.message || 'Failed to fetch flights')
       }
@@ -157,7 +213,11 @@ const FlightSearch = () => {
   }
 
   useEffect(() => {
-    fetchFlights()
+    // Only refetch if we have valid search params
+    if (originParam && destinationParam) {
+      fetchFlights()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortBy])
 
   const formatTime = (dateString) => {
@@ -300,7 +360,11 @@ const FlightSearch = () => {
 
         <div className="results-header">
           <h1>Flights from {origin} to {destination}</h1>
-          {date && <p>{formatDate(date)} • {passengers} {passengers === 1 ? 'passenger' : 'passengers'}</p>}
+          <p>
+            {date ? formatDate(date) : (flights.length > 0 && flights[0].departure_datetime ? formatDate(flights[0].departure_datetime) : '')}
+            {date || (flights.length > 0 && flights[0].departure_datetime) ? ' • ' : ''}
+            {passengers} {passengers === 1 ? 'passenger' : 'passengers'}
+          </p>
         </div>
 
         <div className="results-content">
@@ -342,6 +406,11 @@ const FlightSearch = () => {
                         <div className="flight-time">
                           <div className="time">{formatTime(flight.departure_datetime || flight.departure?.dateTime)}</div>
                           <div className="airport">{flight.departure_airport || flight.departure?.airportCode}</div>
+                          {(flight.departure_datetime || flight.departure?.dateTime) && (
+                            <div className="date" style={{ fontSize: '0.85em', color: '#666', marginTop: '4px' }}>
+                              {formatDate(flight.departure_datetime || flight.departure?.dateTime)}
+                            </div>
+                          )}
                         </div>
                         <div className="flight-duration">
                           <div className="duration-line">
@@ -354,6 +423,11 @@ const FlightSearch = () => {
                         <div className="flight-time">
                           <div className="time">{formatTime(flight.arrival_datetime || flight.arrival?.dateTime)}</div>
                           <div className="airport">{flight.arrival_airport || flight.arrival?.airportCode}</div>
+                          {(flight.arrival_datetime || flight.arrival?.dateTime) && (
+                            <div className="date" style={{ fontSize: '0.85em', color: '#666', marginTop: '4px' }}>
+                              {formatDate(flight.arrival_datetime || flight.arrival?.dateTime)}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flight-details">
@@ -366,7 +440,7 @@ const FlightSearch = () => {
                       <div className="price">${flight.ticket_price || flight.price || 0}</div>
                       <div className="price-label">per person</div>
                       <Link 
-                        to={`/flights/${flightId}`}
+                        to={`/flights/${flightId}${date ? '?date=' + date : ''}`}
                         className="btn-select"
                       >
                         View Details

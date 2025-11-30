@@ -28,21 +28,40 @@ const Home = () => {
   const [carPickupDate, setCarPickupDate] = useState(null)
   const [carDropoffDate, setCarDropoffDate] = useState(null)
 
+  // Helper function to format date as YYYY-MM-DD using local timezone (not UTC)
+  const formatDateLocal = (date) => {
+    if (!date) return null
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
   const handleFlightSearch = (e) => {
     e.preventDefault()
+    
+    // Validate required fields
+    const trimmedOrigin = flightOrigin?.trim()
+    const trimmedDestination = flightDestination?.trim()
+    
+    if (!trimmedOrigin || !trimmedDestination) {
+      alert('Please provide both origin and destination to search for flights.')
+      return
+    }
+    
     const params = new URLSearchParams({
-      origin: flightOrigin,
-      destination: flightDestination,
+      origin: trimmedOrigin,
+      destination: trimmedDestination,
       passengers: flightPassengers,
       flightClass: flightClass
     })
     
     if (flightDepartDate) {
-      params.append('date', flightDepartDate.toISOString().split('T')[0])
+      params.append('date', formatDateLocal(flightDepartDate))
     }
     
     if (isRoundTrip && flightReturnDate) {
-      params.append('returnDate', flightReturnDate.toISOString().split('T')[0])
+      params.append('returnDate', formatDateLocal(flightReturnDate))
     }
     
     navigate(`/flights?${params.toString()}`)
@@ -56,11 +75,11 @@ const Home = () => {
     })
     
     if (hotelCheckIn) {
-      params.append('checkIn', hotelCheckIn.toISOString().split('T')[0])
+      params.append('checkIn', formatDateLocal(hotelCheckIn))
     }
     
     if (hotelCheckOut) {
-      params.append('checkOut', hotelCheckOut.toISOString().split('T')[0])
+      params.append('checkOut', formatDateLocal(hotelCheckOut))
     }
     
     navigate(`/hotels?${params.toString()}`)

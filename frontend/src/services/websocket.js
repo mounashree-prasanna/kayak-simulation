@@ -16,16 +16,45 @@ class WebSocketService {
     this.isConnected = false
   }
 
-  connect(store) {
+  async connect(store) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       return
     }
 
     const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/events'
+    const httpUrl = wsUrl.replace('ws://', 'http://').replace('wss://', 'https://').replace('/events', '/health')
     
     // Only attempt connection if WebSocket is supported
     if (typeof WebSocket === 'undefined') {
       console.warn('[WebSocket] WebSocket not supported in this environment')
+      return
+    }
+
+    // Check if service is available before attempting WebSocket connection
+    // This prevents browser console errors when service is not running
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 2000) // 2 second timeout
+      
+      const response = await fetch(httpUrl, { 
+        method: 'GET',
+        signal: controller.signal
+      })
+      
+      clearTimeout(timeoutId)
+      
+      if (!response.ok) {
+        if (import.meta.env.DEV) {
+          console.debug('[WebSocket] Service health check failed, skipping WebSocket connection')
+        }
+        return
+      }
+    } catch (error) {
+      // Service is not available or not running - skip WebSocket connection
+      // This is expected in development if the service isn't started
+      if (import.meta.env.DEV) {
+        console.debug('[WebSocket] Service not available, skipping WebSocket connection (this is normal if the recommendation service is not running)')
+      }
       return
     }
 

@@ -12,10 +12,19 @@ const CarDetails = () => {
   const [carImages, setCarImages] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [reviews, setReviews] = useState([])
+  const [reviewsLoading, setReviewsLoading] = useState(false)
+  const [aggregateRating, setAggregateRating] = useState(null)
 
   useEffect(() => {
     fetchCar()
   }, [id])
+
+  useEffect(() => {
+    if (car) {
+      fetchReviews()
+    }
+  }, [car, id])
 
   const fetchCar = async () => {
     try {
@@ -56,6 +65,75 @@ const CarDetails = () => {
       }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchReviews = async () => {
+    try {
+      setReviewsLoading(true)
+      
+      // Try multiple ID formats to match reviews
+      const possibleIds = []
+      
+      if (car) {
+        // Add car._id (MongoDB ObjectId) - this is likely what reviews use
+        if (car._id) {
+          possibleIds.push(String(car._id))
+        }
+        // Add car.car_id (string field)
+        if (car.car_id) {
+          possibleIds.push(String(car.car_id))
+        }
+      }
+      // Add URL id parameter
+      if (id) {
+        possibleIds.push(String(id))
+      }
+      
+      // Remove duplicates
+      const uniqueIds = [...new Set(possibleIds)]
+      
+      // Try fetching reviews with each ID format
+      let allReviews = []
+      let aggregateData = null
+      
+      for (const carId of uniqueIds) {
+        try {
+          // Fetch reviews
+          const reviewsResponse = await api.get('/reviews', {
+            params: { entity_type: 'Car', entity_id: carId }
+          })
+          if (reviewsResponse.data.success && reviewsResponse.data.data) {
+            allReviews = [...allReviews, ...reviewsResponse.data.data]
+          }
+
+          // Fetch aggregate ratings (use the first successful one)
+          if (!aggregateData) {
+            const ratingResponse = await api.get('/reviews/aggregate/ratings', {
+              params: { entity_type: 'Car', entity_id: carId }
+            })
+            if (ratingResponse.data.success && ratingResponse.data.data) {
+              aggregateData = ratingResponse.data.data
+            }
+          }
+        } catch (err) {
+          // Continue trying other IDs
+          continue
+        }
+      }
+      
+      // Remove duplicate reviews by _id
+      const uniqueReviews = allReviews.filter((review, index, self) =>
+        index === self.findIndex(r => r._id === review._id)
+      )
+      
+      setReviews(uniqueReviews)
+      setAggregateRating(aggregateData)
+    } catch (err) {
+      console.warn('Failed to fetch reviews:', err.message)
+      setReviews([])
+    } finally {
+      setReviewsLoading(false)
     }
   }
 
@@ -174,6 +252,44 @@ const CarDetails = () => {
                   </div>
                 )}
               </div>
+            </div>
+
+            <div className="details-section reviews-section">
+              <h2>Reviews</h2>
+              {aggregateRating && aggregateRating.total_reviews > 0 && (
+                <div className="reviews-summary">
+                  <div className="reviews-rating">
+                    <span className="rating-value-large">{aggregateRating.average_rating.toFixed(1)}</span>
+                    <div className="rating-stars-large">
+                      {'⭐'.repeat(Math.round(aggregateRating.average_rating))}
+                    </div>
+                    <span className="reviews-count">({aggregateRating.total_reviews} reviews)</span>
+                  </div>
+                </div>
+              )}
+              {reviewsLoading ? (
+                <div className="loading">Loading reviews...</div>
+              ) : reviews.length === 0 ? (
+                <div className="no-reviews">No reviews yet. Be the first to review this car rental!</div>
+              ) : (
+                <div className="reviews-list">
+                  {reviews.map((review) => (
+                    <div key={review._id} className="review-item">
+                      <div className="review-item-header">
+                        <div className="review-rating">
+                          {'⭐'.repeat(review.rating)}
+                          <span className="rating-number">{review.rating}/5</span>
+                        </div>
+                        <span className="review-date">
+                          {new Date(review.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <h3 className="review-title">{review.title}</h3>
+                      <p className="review-comment">{review.comment}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

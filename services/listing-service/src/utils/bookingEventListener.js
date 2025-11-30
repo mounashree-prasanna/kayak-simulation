@@ -39,7 +39,7 @@ const initializeConsumer = async () => {
     await consumer.connect();
     await consumer.subscribe({ 
       topics: ['booking.events'],
-      fromBeginning: false // Only consume new messages
+      fromBeginning: true // Consume from beginning to catch up on missed messages
     });
 
     console.log('[Listing Service] Kafka consumer connected for availability sync');

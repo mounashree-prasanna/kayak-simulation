@@ -23,3 +23,7 @@ env/
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
+
+# MySQL connection test scripts (local debugging)
+scripts/test-mysql-connection.sh
+scripts/test-mysql-connection.ps1

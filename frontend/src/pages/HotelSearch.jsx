@@ -27,11 +27,31 @@ const HotelSearch = () => {
   const checkOutParam = searchParams.get('checkOut')
   const guestsParam = searchParams.get('guests') || 2
 
+  // Helper to parse date from YYYY-MM-DD string without timezone issues
+  const parseDateFromString = (dateString) => {
+    if (!dateString) return null
+    // Parse YYYY-MM-DD format as local date (not UTC)
+    const [year, month, day] = dateString.split('-').map(Number)
+    if (year && month && day) {
+      return new Date(year, month - 1, day)
+    }
+    return null
+  }
+
+  // Helper function to format date as YYYY-MM-DD using local timezone (not UTC)
+  const formatDateLocal = (date) => {
+    if (!date) return null
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
   // Search form state
   const [searchForm, setSearchForm] = useState({
     city: cityParam || '',
-    checkIn: checkInParam ? new Date(checkInParam) : null,
-    checkOut: checkOutParam ? new Date(checkOutParam) : null,
+    checkIn: checkInParam ? parseDateFromString(checkInParam) : null,
+    checkOut: checkOutParam ? parseDateFromString(checkOutParam) : null,
     guests: parseInt(guestsParam) || 2
   })
 
@@ -48,8 +68,8 @@ const HotelSearch = () => {
     // Update form when URL params change
     setSearchForm({
       city: cityParam || '',
-      checkIn: checkInParam ? new Date(checkInParam) : null,
-      checkOut: checkOutParam ? new Date(checkOutParam) : null,
+      checkIn: checkInParam ? parseDateFromString(checkInParam) : null,
+      checkOut: checkOutParam ? parseDateFromString(checkOutParam) : null,
       guests: parseInt(guestsParam) || 2
     })
   }, [cityParam, checkInParam, checkOutParam, guestsParam])
@@ -69,11 +89,11 @@ const HotelSearch = () => {
     })
     
     if (searchForm.checkIn) {
-      params.append('checkIn', searchForm.checkIn.toISOString().split('T')[0])
+      params.append('checkIn', formatDateLocal(searchForm.checkIn))
     }
     
     if (searchForm.checkOut) {
-      params.append('checkOut', searchForm.checkOut.toISOString().split('T')[0])
+      params.append('checkOut', formatDateLocal(searchForm.checkOut))
     }
     
     navigate(`/hotels?${params.toString()}`)
@@ -345,7 +365,11 @@ const HotelSearch = () => {
                       <div className="price">${hotel.price_per_night}</div>
                       <div className="price-label">per night</div>
                       <Link 
-                        to={`/hotels/${hotel._id || hotel.hotel_id}`}
+                        to={`/hotels/${hotel._id || hotel.hotel_id}?${new URLSearchParams({
+                          ...(guests ? { guests } : {}),
+                          ...(checkIn ? { checkIn } : {}),
+                          ...(checkOut ? { checkOut } : {})
+                        }).toString()}`}
                         className="btn-select"
                       >
                         View Details
