@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/database');
+const { connectRedis } = require('./config/redis');
 const flightRoutes = require('./routes/flightRoutes');
 const hotelRoutes = require('./routes/hotelRoutes');
 const carRoutes = require('./routes/carRoutes');
@@ -59,6 +60,14 @@ const startServer = async () => {
   try {
     await connectDB();
     console.log('[Listing Service] MongoDB connected');
+    
+    // Initialize Redis (graceful failure if not available)
+    try {
+      await connectRedis();
+      console.log('[Listing Service] Redis connected for caching');
+    } catch (redisError) {
+      console.warn('[Listing Service] Redis connection failed, continuing without cache:', redisError.message);
+    }
     
     // Initialize Kafka consumer for availability sync (non-blocking)
     initializeConsumer().catch(err => {

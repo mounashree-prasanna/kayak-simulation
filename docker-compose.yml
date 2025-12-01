@@ -33,7 +33,7 @@ services:
     image: redis:7-alpine
     container_name: kayak-redis
     ports:
-      - "6379:6379"
+      - "6380:6379"  # Map external 6380 to internal 6379 to avoid conflicts
     volumes:
       - redis_data:/data
     networks:
@@ -102,6 +102,8 @@ services:
     ports:
       - "3001:3001"
     depends_on:
+      redis:
+        condition: service_healthy
       kafka:
         condition: service_healthy
     networks:
@@ -120,9 +122,15 @@ services:
       MONGODB_DB_NAME: kayak
       KAFKA_BROKER: kafka:9093
       BOOKING_SERVICE_URL: http://booking-service:3003
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_TTL_SEARCH: 600
+      REDIS_TTL_DETAILS: 1800
     ports:
       - "3002:3002"
     depends_on:
+      redis:
+        condition: service_healthy
       kafka:
         condition: service_healthy
     networks:
@@ -145,7 +153,7 @@ services:
       MYSQL_HOST: host.docker.internal
       MYSQL_PORT: 3306
       MYSQL_USER: root
-      MYSQL_PASSWORD: rootpass
+      MYSQL_PASSWORD: Anvitha@2310
       MYSQL_DATABASE: kayak_db
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -175,7 +183,7 @@ services:
       MYSQL_HOST: host.docker.internal
       MYSQL_PORT: 3306
       MYSQL_USER: root
-      MYSQL_PASSWORD: rootpass
+      MYSQL_PASSWORD: Anvitha@2310
       MYSQL_DATABASE: kayak_db
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -204,6 +212,8 @@ services:
     ports:
       - "3005:3005"
     depends_on:
+      redis:
+        condition: service_healthy
       kafka:
         condition: service_healthy
     networks:
@@ -222,9 +232,14 @@ services:
       MONGODB_DB_NAME: kayak
       KAFKA_BROKER: kafka:9093
       ADMIN_API_KEY: admin-super-secret-key-change-in-production
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_TTL: 1800
     ports:
       - "3006:3006"
     depends_on:
+      redis:
+        condition: service_healthy
       kafka:
         condition: service_healthy
     networks:
@@ -245,6 +260,7 @@ services:
       BILLING_SERVICE_URL: http://billing-service:3004
       REVIEW_LOGGING_SERVICE_URL: http://review-logging-service:3005
       ADMIN_ANALYTICS_SERVICE_URL: http://admin-analytics-service:3006
+      AGENTIC_RECOMMENDATION_SERVICE_URL: http://agentic-recommendation-service:8001
       KAFKA_BROKER: kafka:9093
     ports:
       - "3000:3000"
@@ -266,15 +282,30 @@ services:
       dockerfile: Dockerfile
     container_name: kayak-agentic-recommendation-service
     environment:
-      PORT: 8000
+      PORT: 8001
       MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
       MONGODB_DB_NAME: kayak
       KAFKA_BROKER: kafka:9093
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9093
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      SQLITE_DATABASE_URL: sqlite:///./data/deals.db
+      LISTING_SERVICE_URL: http://listing-service:3002
+    env_file:
+      - ./services/agentic-recommendation-service/.env
+    volumes:
+      - agentic-data:/app/data
+      - ./services/agentic-recommendation-service/data/csv:/app/data/csv:ro
     ports:
-      - "8000:8000"
+      - "8001:8001"
     depends_on:
+      redis:
+        condition: service_healthy
       kafka:
         condition: service_healthy
+      listing-service:
+        condition: service_started
     networks:
       - kayak-network
 
@@ -286,6 +317,8 @@ volumes:
   mysql_data:
     driver: local
   redis_data:
+    driver: local
+  agentic-data:
     driver: local
 
 # MongoDB Atlas is used instead of local volumes

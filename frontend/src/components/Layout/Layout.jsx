@@ -28,6 +28,7 @@ const Layout = ({ children }) => {
               <Link to="/flights" className="nav-link">Flights</Link>
               <Link to="/hotels" className="nav-link">Hotels</Link>
               <Link to="/cars" className="nav-link">Cars</Link>
+              <Link to="/travel-agent" className="nav-link">AI Concierge</Link>
             </nav>
           )}
 

@@ -5,6 +5,8 @@
  * for real-time deal updates, booking confirmations, and notifications
  */
 
+import toast from 'react-hot-toast'
+
 class WebSocketService {
   constructor() {
     this.ws = null
@@ -21,7 +23,7 @@ class WebSocketService {
       return
     }
 
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/events'
+    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8001/events'
     const httpUrl = wsUrl.replace('ws://', 'http://').replace('wss://', 'https://').replace('/events', '/health')
     
     // Only attempt connection if WebSocket is supported
@@ -172,7 +174,7 @@ class WebSocketService {
 
   handleBookingEvent(data) {
     if (this.store) {
-      if (data.eventType === 'booking_created') {
+      if (data.eventType === 'booking_created' || data.event_type === 'booking_created') {
         this.store.dispatch({
           type: 'bookings/addBooking',
           payload: data.booking || data
@@ -181,12 +183,17 @@ class WebSocketService {
           type: 'notifications/addNotification',
           payload: {
             type: 'booking',
-            title: 'Booking Created',
+            title: 'Booking created',
             message: `Your ${data.booking?.type || 'booking'} has been created`,
             severity: 'success'
           }
         })
-      } else if (data.eventType === 'booking_confirmed') {
+        // Show toast notification
+        toast.success('Booking created', {
+          duration: 3000,
+          position: 'top-right'
+        })
+      } else if (data.eventType === 'booking_confirmed' || data.event_type === 'booking_confirmed') {
         this.store.dispatch({
           type: 'bookings/updateBooking',
           payload: data.booking || data
@@ -195,12 +202,17 @@ class WebSocketService {
           type: 'notifications/addNotification',
           payload: {
             type: 'booking',
-            title: 'Booking Confirmed!',
+            title: 'And booking confirmed',
             message: `Your ${data.booking?.type || 'booking'} has been confirmed`,
             severity: 'success'
           }
         })
-      } else if (data.eventType === 'booking_cancelled') {
+        // Show toast notification
+        toast.success('And booking confirmed', {
+          duration: 3000,
+          position: 'top-right'
+        })
+      } else if (data.eventType === 'booking_cancelled' || data.event_type === 'booking_cancelled') {
         this.store.dispatch({
           type: 'bookings/updateBooking',
           payload: data.booking || data
@@ -214,23 +226,32 @@ class WebSocketService {
             severity: 'warning'
           }
         })
+        toast.error('Booking Cancelled', {
+          duration: 3000,
+          position: 'top-right'
+        })
       }
     }
   }
 
   handleBillingEvent(data) {
     if (this.store) {
-      if (data.eventType === 'billing_success') {
+      if (data.eventType === 'billing_success' || data.event_type === 'billing_success') {
         this.store.dispatch({
           type: 'notifications/addNotification',
           payload: {
             type: 'payment',
-            title: 'Payment Successful',
-            message: `Payment of $${data.amount || 'N/A'} processed successfully`,
+            title: 'Payment success',
+            message: `Payment of $${data.total_amount_paid || data.amount || 'N/A'} processed successfully`,
             severity: 'success'
           }
         })
-      } else if (data.eventType === 'billing_failed') {
+        // Show toast notification
+        toast.success('Payment success', {
+          duration: 3000,
+          position: 'top-right'
+        })
+      } else if (data.eventType === 'billing_failed' || data.event_type === 'billing_failed') {
         this.store.dispatch({
           type: 'notifications/addNotification',
           payload: {
@@ -239,6 +260,10 @@ class WebSocketService {
             message: data.message || 'Payment could not be processed',
             severity: 'error'
           }
+        })
+        toast.error('Payment Failed', {
+          duration: 3000,
+          position: 'top-right'
         })
       }
     }

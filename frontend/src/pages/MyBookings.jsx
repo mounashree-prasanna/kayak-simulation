@@ -15,6 +15,8 @@ const MyBookings = () => {
   const [filter, setFilter] = useState('all')
   const [reviewModal, setReviewModal] = useState({ isOpen: false, booking: null, listing: null })
   const [userReviews, setUserReviews] = useState({}) // Map of entity_id -> review
+  const [listingDetails, setListingDetails] = useState({}) // Map of reference_id -> listing details
+  const [listingImages, setListingImages] = useState({}) // Map of reference_id -> images
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -43,6 +45,49 @@ const MyBookings = () => {
     }
   }
 
+  const fetchListingDetails = async (booking) => {
+    const bookingType = booking.type || booking.booking_type
+    const referenceId = booking.reference_id
+    
+    if (!bookingType || !referenceId) return null
+    
+    try {
+      let endpoint = ''
+      if (bookingType.toLowerCase() === 'flight') {
+        endpoint = `/flights/${referenceId}`
+      } else if (bookingType.toLowerCase() === 'hotel') {
+        endpoint = `/hotels/${referenceId}`
+      } else if (bookingType.toLowerCase() === 'car') {
+        endpoint = `/cars/${referenceId}`
+      }
+      
+      if (endpoint) {
+        const response = await api.get(endpoint)
+        const listing = response.data.data
+        
+        // Fetch images
+        try {
+          const entityType = bookingType.charAt(0).toUpperCase() + bookingType.slice(1).toLowerCase()
+          const entityId = listing[`${bookingType.toLowerCase()}_id`] || listing._id || referenceId
+          const imageResponse = await api.get('/images', {
+            params: { entity_type: entityType, entity_id: String(entityId) }
+          })
+          if (imageResponse.data.success && imageResponse.data.data) {
+            const images = imageResponse.data.data.map(img => img.image_url)
+            setListingImages(prev => ({ ...prev, [referenceId]: images }))
+          }
+        } catch (imgErr) {
+          // Images not found, continue without them
+        }
+        
+        return listing
+      }
+    } catch (err) {
+      console.warn(`Failed to fetch listing for ${bookingType} ${referenceId}:`, err.message)
+      return null
+    }
+  }
+
   const fetchBookings = async () => {
     try {
       setLoading(true)
@@ -62,8 +107,20 @@ const MyBookings = () => {
           )
         }
       }
-      setBookings(response.data.data || [])
+      const bookingsData = response.data.data || []
+      setBookings(bookingsData)
       setError(null)
+      
+      // Fetch listing details for each booking
+      const detailsMap = {}
+      const fetchPromises = bookingsData.map(async (booking) => {
+        const listing = await fetchListingDetails(booking)
+        if (listing) {
+          detailsMap[booking.reference_id] = listing
+        }
+      })
+      await Promise.all(fetchPromises)
+      setListingDetails(detailsMap)
     } catch (err) {
       if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
         setError('Unable to connect to server. Please ensure the backend services are running.')
@@ -244,18 +301,49 @@ const MyBookings = () => {
               <Link to="/" className="btn-search">Start Searching</Link>
             </div>
           ) : (
-            bookings.map((booking) => (
+            bookings.map((booking) => {
+              const listing = listingDetails[booking.reference_id]
+              const images = listingImages[booking.reference_id] || []
+              const bookingType = booking.type || booking.booking_type
+              
+              // Get name and image
+              let displayName = ''
+              let displayImage = null
+              
+              if (listing) {
+                if (bookingType?.toLowerCase() === 'hotel') {
+                  displayName = listing.hotel_name || listing.name || 'Hotel'
+                  displayImage = images[0] || listing.image_url || listing.images?.[0]
+                } else if (bookingType?.toLowerCase() === 'car') {
+                  displayName = listing.vehicle_model || listing.car_model || listing.model || 'Car Rental'
+                  displayImage = images[0] || listing.image_url || listing.images?.[0]
+                } else if (bookingType?.toLowerCase() === 'flight') {
+                  displayName = `${listing.airline || listing.airline_name || 'Flight'} - ${listing.flight_number || booking.reference_id}`
+                }
+              } else {
+                // Fallback to booking data
+                if (bookingType?.toLowerCase() === 'hotel') {
+                  displayName = booking.hotel?.hotel_name || 'Hotel'
+                } else if (bookingType?.toLowerCase() === 'car') {
+                  displayName = booking.car?.vehicle_model || 'Car Rental'
+                } else if (bookingType?.toLowerCase() === 'flight') {
+                  displayName = booking.flight?.airline || 'Flight'
+                }
+              }
+              
+              return (
               <div key={booking._id || booking.booking_id} className="booking-card">
                 <div className="booking-header">
-                  <div>
-                    <h3>
-                      {booking.type === 'flight' ? '✈️ Flight' :
-                       booking.type === 'hotel' ? '🏨 Hotel' :
-                       '🚗 Car Rental'}
-                    </h3>
-                    <p className="booking-ref">
-                      Booking Reference: {booking.booking_reference || booking.booking_id}
-                    </p>
+                  <div className="booking-title-section">
+                    {displayImage && (
+                      <img src={displayImage} alt={displayName} className="booking-image" />
+                    )}
+                    <div>
+                      <h3 className="booking-title">{displayName}</h3>
+                      <p className="booking-ref">
+                        Booking Reference: {booking.booking_reference || booking.booking_id}
+                      </p>
+                    </div>
                   </div>
                   <span className={`status-badge status-${booking.status}`}>
                     {booking.status}
@@ -263,38 +351,36 @@ const MyBookings = () => {
                 </div>
 
                 <div className="booking-details">
-                  {booking.type === 'flight' && booking.flight && (
+                  {bookingType?.toLowerCase() === 'flight' && (booking.flight || listing) && (
                     <div>
-                      <p><strong>Route:</strong> {booking.flight.departure_airport} → {booking.flight.arrival_airport}</p>
-                      <p><strong>Date:</strong> {format(new Date(booking.flight.departure_datetime), 'MMM dd, yyyy')}</p>
-                      <p><strong>Airline:</strong> {booking.flight.airline}</p>
+                      <p><strong>Route:</strong> {(listing?.departure_airport || booking.flight?.departure_airport) || 'N/A'} → {(listing?.arrival_airport || booking.flight?.arrival_airport) || 'N/A'}</p>
+                      <p><strong>Date:</strong> {format(new Date(booking.flight?.departure_datetime || booking.start_date), 'MMM dd, yyyy')}</p>
+                      <p><strong>Airline:</strong> {listing?.airline || listing?.airline_name || booking.flight?.airline || 'N/A'}</p>
                     </div>
                   )}
-                  {booking.type === 'hotel' && booking.hotel && (
+                  {bookingType?.toLowerCase() === 'hotel' && (booking.hotel || listing) && (
                     <div>
-                      <p><strong>Hotel:</strong> {booking.hotel.hotel_name}</p>
-                      <p><strong>Location:</strong> {booking.hotel.address?.city}, {booking.hotel.address?.state}</p>
-                      {booking.check_in && booking.check_out && (
+                      <p><strong>Location:</strong> {(listing?.address?.city || booking.hotel?.address?.city) || 'N/A'}, {(listing?.address?.state || booking.hotel?.address?.state) || 'N/A'}</p>
+                      {(booking.check_in || booking.start_date) && (booking.check_out || booking.end_date) && (
                         <p>
-                          <strong>Dates:</strong> {format(new Date(booking.check_in), 'MMM dd')} - {format(new Date(booking.check_out), 'MMM dd, yyyy')}
+                          <strong>Dates:</strong> {format(new Date(booking.check_in || booking.start_date), 'MMM dd')} - {format(new Date(booking.check_out || booking.end_date), 'MMM dd, yyyy')}
                         </p>
                       )}
                     </div>
                   )}
-                  {booking.type === 'car' && booking.car && (
+                  {bookingType?.toLowerCase() === 'car' && (booking.car || listing) && (
                     <div>
-                      <p><strong>Vehicle:</strong> {booking.car.vehicle_model}</p>
-                      <p><strong>Company:</strong> {booking.car.company_name}</p>
-                      {booking.pickup_date && booking.dropoff_date && (
+                      <p><strong>Company:</strong> {listing?.company_name || booking.car?.company_name || 'N/A'}</p>
+                      {(booking.pickup_date || booking.start_date) && (booking.dropoff_date || booking.end_date) && (
                         <p>
-                          <strong>Dates:</strong> {format(new Date(booking.pickup_date), 'MMM dd')} - {format(new Date(booking.dropoff_date), 'MMM dd, yyyy')}
+                          <strong>Dates:</strong> {format(new Date(booking.pickup_date || booking.start_date), 'MMM dd')} - {format(new Date(booking.dropoff_date || booking.end_date), 'MMM dd, yyyy')}
                         </p>
                       )}
                     </div>
                   )}
                   {booking.total_price && (
                     <p className="booking-price">
-                      <strong>Total:</strong> ${booking.total_price}
+                      <strong>Total:</strong> ${typeof booking.total_price === 'number' ? booking.total_price.toFixed(2) : parseFloat(booking.total_price || 0).toFixed(2)}
                     </p>
                   )}
                 </div>
@@ -321,7 +407,8 @@ const MyBookings = () => {
                   )}
                 </div>
               </div>
-            ))
+              )
+            })
           )}
         </div>
       </div>

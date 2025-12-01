@@ -16,6 +16,7 @@ const BOOKING_SERVICE_URL = process.env.BOOKING_SERVICE_URL || 'http://localhost
 const BILLING_SERVICE_URL = process.env.BILLING_SERVICE_URL || 'http://localhost:3004';
 const REVIEW_LOGGING_SERVICE_URL = process.env.REVIEW_LOGGING_SERVICE_URL || 'http://localhost:3005';
 const ADMIN_ANALYTICS_SERVICE_URL = process.env.ADMIN_ANALYTICS_SERVICE_URL || 'http://localhost:3006';
+const AGENTIC_RECOMMENDATION_SERVICE_URL = process.env.AGENTIC_RECOMMENDATION_SERVICE_URL || 'http://localhost:8001';
 
 // Middleware
 app.use(cors());
@@ -139,6 +140,80 @@ app.use('/api/admins', createProxyMiddleware({
       res.status(500).json({
         success: false,
         error: 'Failed to connect to admin analytics service: ' + err.message
+      });
+    }
+  },
+  timeout: 30000,
+  proxyTimeout: 30000
+}));
+
+// Agentic Recommendation Service routes
+app.use('/api/intent', createProxyMiddleware({
+  target: AGENTIC_RECOMMENDATION_SERVICE_URL,
+  changeOrigin: true,
+  pathRewrite: { '^/api/intent': '/intent' },
+  logLevel: 'info',
+  onProxyReq: (proxyReq, req, res) => {
+    console.log(`[API Gateway] Proxying ${req.method} ${req.originalUrl || req.url} to ${AGENTIC_RECOMMENDATION_SERVICE_URL}${req.url.replace('/api/intent', '/intent')}`);
+  },
+  onProxyRes: (proxyRes, req, res) => {
+    console.log(`[API Gateway] Received ${proxyRes.statusCode} from agentic recommendation service for ${req.path}`);
+  },
+  onError: (err, req, res) => {
+    console.error(`[API Gateway] Proxy error for ${req.path}:`, err.message, err.code);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to connect to agentic recommendation service: ' + err.message
+      });
+    }
+  },
+  timeout: 30000,
+  proxyTimeout: 30000
+}));
+
+app.use('/api/bundles', createProxyMiddleware({
+  target: AGENTIC_RECOMMENDATION_SERVICE_URL,
+  changeOrigin: true,
+  pathRewrite: { '^/api/bundles': '/bundles' },
+  logLevel: 'info',
+  onProxyReq: (proxyReq, req, res) => {
+    console.log(`[API Gateway] Proxying ${req.method} ${req.originalUrl || req.url} to ${AGENTIC_RECOMMENDATION_SERVICE_URL}${req.url.replace('/api/bundles', '/bundles')}`);
+  },
+  onProxyRes: (proxyRes, req, res) => {
+    console.log(`[API Gateway] Received ${proxyRes.statusCode} from agentic recommendation service for ${req.path}`);
+  },
+  onError: (err, req, res) => {
+    console.error(`[API Gateway] Proxy error for ${req.path}:`, err.message, err.code);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to connect to agentic recommendation service: ' + err.message
+      });
+    }
+  },
+  timeout: 30000,
+  proxyTimeout: 30000
+}));
+
+// Ingestion routes
+app.use('/api/ingest', createProxyMiddleware({
+  target: AGENTIC_RECOMMENDATION_SERVICE_URL,
+  changeOrigin: true,
+  pathRewrite: { '^/api/ingest': '/ingest' },
+  logLevel: 'info',
+  onProxyReq: (proxyReq, req, res) => {
+    console.log(`[API Gateway] Proxying ${req.method} ${req.originalUrl || req.url} to ${AGENTIC_RECOMMENDATION_SERVICE_URL}${req.url.replace('/api/ingest', '/ingest')}`);
+  },
+  onProxyRes: (proxyRes, req, res) => {
+    console.log(`[API Gateway] Received ${proxyRes.statusCode} from agentic recommendation service for ${req.path}`);
+  },
+  onError: (err, req, res) => {
+    console.error(`[API Gateway] Proxy error for ${req.path}:`, err.message, err.code);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to connect to agentic recommendation service: ' + err.message
       });
     }
   },

@@ -3,6 +3,10 @@ const Admin = require('../models/Admin');
 const { publishUserEvent } = require('../config/kafka');
 const { validateSSN, validateState, validateZip, validateEmail } = require('../utils/validation');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
+const { get: redisGet, set: redisSet, del: redisDel, delPattern: redisDelPattern } = require('../config/redis');
+
+// Redis TTL configuration
+const REDIS_TTL = parseInt(process.env.REDIS_TTL || '1800'); // 30 minutes default
 
 const loginUser = async (req, res) => {
   try {
@@ -82,7 +86,7 @@ const loginUser = async (req, res) => {
       return;
     }
 
-    // Regular user login
+    // Regular user login - always fetch from DB for password validation (don't cache passwords)
     const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
     console.log('[User Service] User found:', user ? 'Yes' : 'No');
 
@@ -139,6 +143,15 @@ const loginUser = async (req, res) => {
     const userObj = user.toObject();
     delete userObj.password;
     delete userObj.refresh_token;
+
+    // Cache user by user_id and email after successful login
+    try {
+      await redisSet(`user:${user.user_id}`, JSON.stringify(userObj), REDIS_TTL);
+      await redisSet(`user:email:${user.email.toLowerCase()}`, JSON.stringify(userObj), REDIS_TTL);
+      console.log(`[User Service] Cached user after login: ${user.user_id}`);
+    } catch (redisError) {
+      console.warn('[User Service] Failed to cache user after login:', redisError.message);
+    }
 
     console.log('[User Service] Login successful for user:', user.email);
     res.status(200).json({
@@ -273,6 +286,15 @@ const createUser = async (req, res) => {
     // Remove password from user object before sending response
     const userObj = savedUser.toObject();
     delete userObj.password;
+    delete userObj.refresh_token;
+
+    // Invalidate cache for new user (no cache yet, but clear any potential stale data)
+    try {
+      await redisDel(`user:${user_id}`);
+      await redisDel(`user:email:${email.toLowerCase()}`);
+    } catch (redisError) {
+      console.warn('[User Service] Failed to invalidate cache on create:', redisError.message);
+    }
 
     // Publish Kafka event
     console.log('[User Service] Publishing Kafka event...');
@@ -305,19 +327,55 @@ const getUser = async (req, res) => {
   try {
     const { user_id } = req.params;
 
+    // Check Redis cache first (cache-aside pattern)
+    const cacheKey = `user:${user_id}`;
+    try {
+      const cached = await redisGet(cacheKey);
+      if (cached) {
+        const cachedUser = JSON.parse(cached);
+        // Remove sensitive fields if present
+        delete cachedUser.password;
+        delete cachedUser.refresh_token;
+        console.log(`[User Service] Cache HIT for user: ${user_id}`);
+        return res.status(200).json({
+          success: true,
+          data: cachedUser,
+          cached: true
+        });
+      }
+      console.log(`[User Service] Cache MISS for user: ${user_id}`);
+    } catch (redisError) {
+      // If Redis fails, continue to MongoDB query (graceful degradation)
+      console.warn('[User Service] Redis cache miss or error, falling back to MongoDB:', redisError.message);
+    }
+
+    // Cache miss - query MongoDB
     const user = await User.findOne({ user_id });
 
     if (!user) {
-      res.status(404).json({
+      return res.status(404).json({
         success: false,
         error: 'User not found'
       });
-      return;
+    }
+
+    // Remove sensitive fields before caching and returning
+    const userObj = user.toObject();
+    delete userObj.password;
+    delete userObj.refresh_token;
+
+    // Cache the result in Redis with TTL
+    try {
+      await redisSet(cacheKey, JSON.stringify(userObj), REDIS_TTL);
+      console.log(`[User Service] Cached user: ${user_id}`);
+    } catch (redisError) {
+      // Log but don't fail the request if caching fails
+      console.warn('[User Service] Failed to cache user:', redisError.message);
     }
 
     res.status(200).json({
       success: true,
-      data: user
+      data: userObj
     });
   } catch (error) {
     res.status(500).json({
@@ -377,19 +435,40 @@ const updateUser = async (req, res) => {
     );
 
     if (!user) {
-      res.status(404).json({
+      return res.status(404).json({
         success: false,
         error: 'User not found'
       });
-      return;
     }
 
+    // Invalidate cache on update
+    try {
+      await redisDel(`user:${user_id}`);
+      if (updates.email) {
+        // If email changed, invalidate old email cache
+        await redisDel(`user:email:${updates.email.toLowerCase()}`);
+      }
+      // Also invalidate by old email if we have it
+      const oldUser = await User.findOne({ user_id });
+      if (oldUser && oldUser.email) {
+        await redisDel(`user:email:${oldUser.email.toLowerCase()}`);
+      }
+      console.log(`[User Service] Cache invalidated for user: ${user_id}`);
+    } catch (redisError) {
+      console.warn('[User Service] Failed to invalidate cache on update:', redisError.message);
+    }
+
+    // Remove sensitive fields before returning
+    const userObj = user.toObject();
+    delete userObj.password;
+    delete userObj.refresh_token;
+
     // Publish Kafka event
-    await publishUserEvent('user_updated', user.toObject());
+    await publishUserEvent('user_updated', userObj);
 
     res.status(200).json({
       success: true,
-      data: user
+      data: userObj
     });
   } catch (error) {
     if (error.code === 11000) {
@@ -414,15 +493,30 @@ const deleteUser = async (req, res) => {
     const user = await User.findOneAndDelete({ user_id });
 
     if (!user) {
-      res.status(404).json({
+      return res.status(404).json({
         success: false,
         error: 'User not found'
       });
-      return;
     }
 
+    // Invalidate cache on delete
+    try {
+      await redisDel(`user:${user_id}`);
+      if (user.email) {
+        await redisDel(`user:email:${user.email.toLowerCase()}`);
+      }
+      console.log(`[User Service] Cache invalidated for deleted user: ${user_id}`);
+    } catch (redisError) {
+      console.warn('[User Service] Failed to invalidate cache on delete:', redisError.message);
+    }
+
+    // Remove sensitive fields before publishing event
+    const userObj = user.toObject();
+    delete userObj.password;
+    delete userObj.refresh_token;
+
     // Publish Kafka event
-    await publishUserEvent('user_deleted', user.toObject());
+    await publishUserEvent('user_deleted', userObj);
 
     res.status(200).json({
       success: true,

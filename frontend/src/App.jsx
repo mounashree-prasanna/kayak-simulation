@@ -27,6 +27,7 @@ import AdminListingManagement from './pages/admin/AdminListingManagement'
 import AdminUserManagement from './pages/admin/AdminUserManagement'
 import AdminBilling from './pages/admin/AdminBilling'
 import AdminAnalytics from './pages/admin/AdminAnalytics'
+import TravelAgent from './components/TravelAgent/TravelAgent'
 
 function App() {
   useEffect(() => {
@@ -84,6 +85,8 @@ function App() {
             <Route path="/admin/users" element={<AdminUserManagement />} />
             <Route path="/admin/billing" element={<AdminBilling />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
+            <Route path="/travel-agent" element={<TravelAgent />} />
+            <Route path="/concierge" element={<TravelAgent />} />
           </Routes>
           <NotificationCenter />
         </Layout>

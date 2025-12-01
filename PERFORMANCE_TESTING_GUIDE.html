@@ -1,0 +1,1329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Testing Guide - 4 Test Combinations</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+        }
+        h3 {
+            color: #555;
+            margin-top: 20px;
+        }
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+        }
+        .code-block code {
+            color: #ecf0f1;
+        }
+        .info-box {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .warning-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .success-box {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        .endpoint-list {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .endpoint-list li {
+            margin: 8px 0;
+            font-family: 'Courier New', monospace;
+        }
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            margin: 0 5px;
+        }
+        .badge-redis {
+            background: #dc3545;
+            color: white;
+        }
+        .badge-kafka {
+            background: #6f42c1;
+            color: white;
+        }
+        .badge-indexing {
+            background: #17a2b8;
+            color: white;
+        }
+        .badge-pagination {
+            background: #28a745;
+            color: white;
+        }
+        .badge-pooling {
+            background: #ffc107;
+            color: black;
+        }
+        .toc {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+        }
+        .toc ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .toc li {
+            margin: 8px 0;
+        }
+        .toc a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        .step-number {
+            background: #3498db;
+            color: white;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        .jmeter-config {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Performance Testing Guide - 4 Test Combinations</h1>
+        <p><strong>Kayak Simulation Project</strong> | Comprehensive Testing & JMeter Guide</p>
+        
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ul>
+                <li><a href="#overview">1. Overview</a></li>
+                <li><a href="#redis-implementation">2. Redis Implementation Details</a></li>
+                <li><a href="#kafka-integration">3. Kafka Topics Integration</a></li>
+                <li><a href="#test-combinations">4. Test Combinations</a></li>
+                <li><a href="#combination-1">5. Combination 1: BASE</a></li>
+                <li><a href="#combination-2">6. Combination 2: BASE + REDIS</a></li>
+                <li><a href="#combination-3">7. Combination 3: BASE + REDIS + KAFKA</a></li>
+                <li><a href="#combination-4">8. Combination 4: ALL OPTIMIZATIONS</a></li>
+                <li><a href="#jmeter-guide">9. JMeter Testing Guide</a></li>
+                <li><a href="#endpoints">10. Complete Endpoint List</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="container" id="overview">
+        <h2>1. Overview</h2>
+        <p>This guide provides comprehensive instructions for testing 4 performance optimization combinations:</p>
+        <table>
+            <tr>
+                <th>Combination</th>
+                <th>Features Enabled</th>
+                <th>Purpose</th>
+            </tr>
+            <tr>
+                <td><strong>1. BASE</strong></td>
+                <td>None</td>
+                <td>Baseline performance measurement</td>
+            </tr>
+            <tr>
+                <td><strong>2. BASE + REDIS</strong></td>
+                <td>Redis Caching</td>
+                <td>Measure caching impact</td>
+            </tr>
+            <tr>
+                <td><strong>3. BASE + REDIS + KAFKA</strong></td>
+                <td>Redis + Kafka Events</td>
+                <td>Measure event-driven architecture impact</td>
+            </tr>
+            <tr>
+                <td><strong>4. ALL OPTIMIZATIONS</strong></td>
+                <td>Redis + Kafka + Indexing + Pagination + Connection Pooling</td>
+                <td>Measure full optimization stack</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="container" id="redis-implementation">
+        <h2>2. Redis Implementation Details</h2>
+        
+        <h3>Services Using Redis:</h3>
+        
+        <h4>🔴 1. User Service</h4>
+        <div class="info-box">
+            <strong>File:</strong> <code>services/user-service/src/config/redis.js</code><br>
+            <strong>Cache Keys:</strong>
+            <ul>
+                <li><code>user:{user_id}</code> - User profile (TTL: 30 min)</li>
+                <li><code>user:email:{email}</code> - User lookup by email (TTL: 30 min)</li>
+            </ul>
+            <strong>Cached Endpoints:</strong>
+            <ul>
+                <li><code>GET /api/users/:user_id</code> - getUser()</li>
+                <li>Email lookup in login (cached after successful login)</li>
+            </ul>
+            <strong>Cache Invalidation:</strong> createUser(), updateUser(), deleteUser()
+        </div>
+
+        <h4>🔴 2. Listing Service</h4>
+        <div class="info-box">
+            <strong>File:</strong> <code>services/listing-service/src/config/redis.js</code><br>
+            <strong>Cache Keys:</strong>
+            <ul>
+                <li><code>flights:search:{hash}</code> - Flight search results (TTL: 10 min)</li>
+                <li><code>flight:{flight_id}</code> - Individual flight (TTL: 30 min)</li>
+                <li><code>hotels:search:{hash}</code> - Hotel search results (TTL: 10 min)</li>
+                <li><code>hotel:{hotel_id}</code> - Individual hotel (TTL: 30 min)</li>
+                <li><code>cars:search:{hash}</code> - Car search results (TTL: 10 min)</li>
+                <li><code>car:{car_id}</code> - Individual car (TTL: 30 min)</li>
+            </ul>
+            <strong>Cached Endpoints:</strong>
+            <ul>
+                <li><code>GET /api/flights/search</code></li>
+                <li><code>GET /api/flights/:flight_id</code></li>
+                <li><code>GET /api/hotels/search</code></li>
+                <li><code>GET /api/hotels/:hotel_id</code></li>
+                <li><code>GET /api/cars/search</code></li>
+                <li><code>GET /api/cars/:car_id</code></li>
+            </ul>
+            <strong>Cache Invalidation:</strong> All create/update/delete operations
+        </div>
+
+        <h4>🔴 3. Booking Service</h4>
+        <div class="info-box">
+            <strong>File:</strong> <code>shared/redisClient.js</code><br>
+            <strong>Cache Keys:</strong>
+            <ul>
+                <li><code>booking:{booking_id}</code> - Individual booking (TTL: 60s)</li>
+                <li><code>booking:user:{user_id}:all</code> - All user bookings</li>
+                <li><code>booking:user:{user_id}:{type}_{status}</code> - Filtered bookings</li>
+            </ul>
+            <strong>Cached Endpoints:</strong>
+            <ul>
+                <li><code>GET /api/bookings/:booking_id</code></li>
+                <li><code>GET /api/bookings/users/:user_id/bookings</code></li>
+            </ul>
+            <strong>Cache Invalidation:</strong> createBooking(), cancelBooking(), confirmBooking()
+        </div>
+
+        <h4>🔴 4. Billing Service</h4>
+        <div class="info-box">
+            <strong>File:</strong> <code>shared/redisClient.js</code><br>
+            <strong>Cache Keys:</strong>
+            <ul>
+                <li><code>billing:{billing_id}</code> - Individual billing (TTL: 1 hour)</li>
+                <li><code>billing:user:{user_id}</code> - User billing records</li>
+                <li><code>billing:user:{user_id}:{year}-{month}</code> - Monthly stats</li>
+            </ul>
+            <strong>Cached Endpoints:</strong>
+            <ul>
+                <li><code>GET /api/billings/:billing_id</code></li>
+                <li><code>GET /api/billings/users/:user_id</code></li>
+            </ul>
+            <strong>Cache Invalidation:</strong> processPayment()
+        </div>
+
+        <h4>🔴 5. Admin Analytics Service</h4>
+        <div class="info-box">
+            <strong>File:</strong> <code>services/admin-analytics-service/src/config/redis.js</code><br>
+            <strong>Cache Keys:</strong>
+            <ul>
+                <li><code>analytics:top-properties:{year}:{page}:{limit}</code></li>
+                <li><code>analytics:city-revenue:{city}:{year}</code></li>
+                <li><code>analytics:top-providers:{year}:{month}</code></li>
+                <li><code>analytics:bills:{date}:{month}:{year}</code></li>
+                <li><code>analytics:listing-clicks:{listing_id}</code></li>
+                <li><code>analytics:page-activity:all</code></li>
+            </ul>
+            <strong>Cached Endpoints:</strong>
+            <ul>
+                <li><code>GET /api/analytics/top-properties</code></li>
+                <li><code>GET /api/analytics/city-revenue</code></li>
+                <li><code>GET /api/analytics/top-providers</code></li>
+                <li><code>GET /api/analytics/bills</code></li>
+                <li><code>GET /api/analytics/listing-clicks</code></li>
+                <li><code>GET /api/analytics/clicks-per-page</code></li>
+            </ul>
+            <strong>TTL:</strong> 30 minutes (configurable)
+        </div>
+
+        <h4>🔴 6. Agentic Recommendation Service</h4>
+        <div class="info-box">
+            <strong>File:</strong> <code>services/agentic-recommendation-service/src/services/caching_service.py</code><br>
+            <strong>Cache Keys:</strong>
+            <ul>
+                <li><code>deals:route:{origin}-{destination}:flights</code></li>
+                <li><code>deals:route:{origin}-{destination}:hotels</code></li>
+                <li><code>deals:listing:{listing_id}</code></li>
+            </ul>
+            <strong>Cached Endpoints:</strong>
+            <ul>
+                <li><code>GET /api/bundles</code> - Bundle recommendations</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="container" id="kafka-integration">
+        <h2>3. Kafka Topics Integration</h2>
+        
+        <h3>Kafka Topics Used:</h3>
+        <ul>
+            <li><code>booking.events</code> - Booking lifecycle events</li>
+            <li><code>billing.events</code> - Payment processing events</li>
+            <li><code>user.events</code> - User management events</li>
+            <li><code>tracking.events</code> - User activity tracking</li>
+            <li><code>deal.events</code> - Deal updates and notifications</li>
+            <li><code>raw_supplier_feeds</code> - CSV ingestion pipeline</li>
+            <li><code>deals.normalized</code> - Normalized deal data</li>
+            <li><code>deals.scored</code> - Scored deals</li>
+            <li><code>deals.tagged</code> - Tagged deals</li>
+        </ul>
+
+        <h3>Service Integration Matrix:</h3>
+        <table>
+            <tr>
+                <th>Service</th>
+                <th>Publishes</th>
+                <th>Consumes</th>
+                <th>Purpose</th>
+            </tr>
+            <tr>
+                <td><strong>Booking Service</strong></td>
+                <td><code>booking.events</code><br>(booking_created, booking_confirmed, booking_cancelled)</td>
+                <td><code>billing.events</code></td>
+                <td>Saga pattern - listen for payment results</td>
+            </tr>
+            <tr>
+                <td><strong>Billing Service</strong></td>
+                <td><code>billing.events</code><br>(billing_success, billing_failed)</td>
+                <td><code>booking.events</code></td>
+                <td>Listen for booking creation to process payments</td>
+            </tr>
+            <tr>
+                <td><strong>User Service</strong></td>
+                <td><code>user.events</code><br>(user_created, user_updated, user_deleted)</td>
+                <td>None</td>
+                <td>User lifecycle events</td>
+            </tr>
+            <tr>
+                <td><strong>Listing Service</strong></td>
+                <td>None</td>
+                <td><code>booking.events</code></td>
+                <td>Update MongoDB availability when bookings created/confirmed</td>
+            </tr>
+            <tr>
+                <td><strong>Review-Logging Service</strong></td>
+                <td><code>tracking.events</code><br>(page_click, listing_click, user_trace)</td>
+                <td>None</td>
+                <td>Activity tracking</td>
+            </tr>
+            <tr>
+                <td><strong>Agentic Recommendation Service</strong></td>
+                <td><code>deal.events</code> + pipeline topics<br>(raw_supplier_feeds, deals.normalized, deals.scored, deals.tagged)</td>
+                <td>All events + pipeline topics</td>
+                <td>Deal processing + WebSocket bridge for real-time notifications</td>
+            </tr>
+            <tr>
+                <td><strong>API Gateway</strong></td>
+                <td><code>tracking.events</code> (optional)</td>
+                <td>None</td>
+                <td>API request tracking</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="container" id="test-combinations">
+        <h2>4. Test Combinations Configuration</h2>
+        
+        <h3>Feature Flags & Environment Variables</h3>
+        <table>
+            <tr>
+                <th>Feature</th>
+                <th>Environment Variable</th>
+                <th>Enable Value</th>
+                <th>Disable Value</th>
+            </tr>
+            <tr>
+                <td>Redis Caching</td>
+                <td><code>REDIS_HOST</code></td>
+                <td><code>redis</code></td>
+                <td><code>disabled</code> or remove from docker-compose.yml</td>
+            </tr>
+            <tr>
+                <td>Kafka Events</td>
+                <td><code>KAFKA_BROKER</code></td>
+                <td><code>kafka:9093</code></td>
+                <td><code>disabled</code> or stop kafka service</td>
+            </tr>
+            <tr>
+                <td>Connection Pooling</td>
+                <td><code>ENABLE_POOLING</code></td>
+                <td><code>true</code></td>
+                <td><code>false</code></td>
+            </tr>
+            <tr>
+                <td>Database Indexing</td>
+                <td><code>ENABLE_INDEXING</code></td>
+                <td><code>true</code></td>
+                <td><code>false</code></td>
+            </tr>
+            <tr>
+                <td>Pagination</td>
+                <td><code>ENABLE_PAGINATION</code></td>
+                <td><code>true</code></td>
+                <td><code>false</code></td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="container" id="combination-1">
+        <h2>5. Combination 1: BASE (No Optimizations)</h2>
+        
+        <h3>Configuration:</h3>
+        <div class="code-block">
+# In docker-compose.yml, set for all services:
+ENABLE_POOLING=false
+ENABLE_INDEXING=false
+ENABLE_PAGINATION=false
+REDIS_HOST=disabled  # Or comment out Redis service
+KAFKA_BROKER=disabled  # Or stop kafka/zookeeper services
+        </div>
+
+        <h3>Step-by-Step Setup:</h3>
+        <div class="info-box">
+            <p><span class="step-number">1</span> Stop all services:</p>
+            <div class="code-block">docker compose down</div>
+            
+            <p><span class="step-number">2</span> Update docker-compose.yml:</p>
+            <div class="code-block"># Set environment variables:
+ENABLE_POOLING=false
+ENABLE_INDEXING=false
+ENABLE_PAGINATION=false
+REDIS_HOST=disabled
+KAFKA_BROKER=disabled</div>
+            
+            <p><span class="step-number">3</span> Stop Redis and Kafka (if running):</p>
+            <div class="code-block">docker compose stop redis kafka zookeeper</div>
+            
+            <p><span class="step-number">4</span> Start services:</p>
+            <div class="code-block">docker compose up -d</div>
+            
+            <p><span class="step-number">5</span> Verify configuration:</p>
+            <div class="code-block"># Check logs - should NOT see:
+docker compose logs user-service | grep -i "pooling"
+docker compose logs booking-service | grep -i "redis"
+docker compose logs booking-service | grep -i "kafka"</div>
+        </div>
+
+        <h3>Endpoints to Test:</h3>
+        <div class="endpoint-list">
+            <ul>
+                <li><strong>GET</strong> /api/flights/search?origin=NYC&destination=LAX</li>
+                <li><strong>GET</strong> /api/flights/FL001</li>
+                <li><strong>GET</strong> /api/hotels/search?city=New%20York</li>
+                <li><strong>GET</strong> /api/hotels/HOTEL001</li>
+                <li><strong>GET</strong> /api/cars/search?city=Los%20Angeles</li>
+                <li><strong>GET</strong> /api/cars/CAR001</li>
+                <li><strong>GET</strong> /api/users/123-45-6789</li>
+                <li><strong>POST</strong> /api/bookings</li>
+                <li><strong>GET</strong> /api/bookings/BK123456</li>
+                <li><strong>GET</strong> /api/bookings/users/USER123/bookings</li>
+                <li><strong>POST</strong> /api/billings/process-payment</li>
+                <li><strong>GET</strong> /api/billings/BILL123</li>
+                <li><strong>GET</strong> /api/analytics/top-properties?year=2024</li>
+                <li><strong>GET</strong> /api/analytics/city-revenue?year=2024</li>
+            </ul>
+        </div>
+
+        <h3>Expected Behavior:</h3>
+        <ul>
+            <li>No cache hits in logs</li>
+            <li>No Kafka events published</li>
+            <li>No connection pooling messages</li>
+            <li>All queries hit database directly</li>
+            <li>Baseline response times (slowest)</li>
+        </ul>
+    </div>
+
+    <div class="container" id="combination-2">
+        <h2>6. Combination 2: BASE + REDIS</h2>
+        
+        <h3>Configuration:</h3>
+        <div class="code-block">
+# In docker-compose.yml:
+ENABLE_POOLING=false
+ENABLE_INDEXING=false
+ENABLE_PAGINATION=false
+REDIS_HOST=redis  # Enable Redis
+REDIS_PORT=6379
+KAFKA_BROKER=disabled  # Keep Kafka disabled
+        </div>
+
+        <h3>Step-by-Step Setup:</h3>
+        <div class="info-box">
+            <p><span class="step-number">1</span> Start Redis service:</p>
+            <div class="code-block">docker compose up -d redis</div>
+            
+            <p><span class="step-number">2</span> Update docker-compose.yml for services using Redis:</p>
+            <div class="code-block"># Add to user-service, listing-service, booking-service, 
+# billing-service, admin-analytics-service:
+REDIS_HOST=redis
+REDIS_PORT=6379</div>
+            
+            <p><span class="step-number">3</span> Rebuild affected services:</p>
+            <div class="code-block">docker compose build user-service listing-service booking-service billing-service admin-analytics-service</div>
+            
+            <p><span class="step-number">4</span> Start all services:</p>
+            <div class="code-block">docker compose up -d</div>
+            
+            <p><span class="step-number">5</span> Verify Redis connection:</p>
+            <div class="code-block">docker exec kayak-redis redis-cli PING
+# Should return: PONG
+
+docker compose logs user-service | grep -i "redis connected"
+docker compose logs booking-service | grep -i "redis connected"</div>
+        </div>
+
+        <h3>Endpoints to Test (Same as Combination 1):</h3>
+        <div class="endpoint-list">
+            <ul>
+                <li><strong>GET</strong> /api/flights/search?origin=NYC&destination=LAX</li>
+                <li><strong>GET</strong> /api/flights/FL001 (test twice - second should be cached)</li>
+                <li><strong>GET</strong> /api/hotels/search?city=New%20York</li>
+                <li><strong>GET</strong> /api/hotels/HOTEL001</li>
+                <li><strong>GET</strong> /api/cars/search?city=Los%20Angeles</li>
+                <li><strong>GET</strong> /api/cars/CAR001</li>
+                <li><strong>GET</strong> /api/users/123-45-6789</li>
+                <li><strong>GET</strong> /api/bookings/BK123456</li>
+                <li><strong>GET</strong> /api/bookings/users/USER123/bookings</li>
+                <li><strong>GET</strong> /api/billings/BILL123</li>
+                <li><strong>GET</strong> /api/analytics/top-properties?year=2024</li>
+            </ul>
+        </div>
+
+        <h3>Expected Behavior:</h3>
+        <ul>
+            <li>First request: Cache MISS (queries database)</li>
+            <li>Second request: Cache HIT (returns from Redis, faster)</li>
+            <li>Response includes <code>"cached": true</code> on cache hits</li>
+            <li>Logs show "Cache HIT" and "Cache MISS" messages</li>
+            <li>No Kafka events published</li>
+        </ul>
+
+        <h3>Verification Commands:</h3>
+        <div class="code-block">
+# Check Redis keys
+docker exec kayak-redis redis-cli KEYS "booking:*" | head -10
+docker exec kayak-redis redis-cli KEYS "flights:search:*" | head -5
+docker exec kayak-redis redis-cli KEYS "user:*" | head -5
+
+# Test cache hit
+curl -s "http://localhost:3003/api/bookings/BK123456" | jq '.cached'
+# First call: null or false, Second call: true
+        </div>
+    </div>
+
+    <div class="container" id="combination-3">
+        <h2>7. Combination 3: BASE + REDIS + KAFKA</h2>
+        
+        <h3>Configuration:</h3>
+        <div class="code-block">
+# In docker-compose.yml:
+ENABLE_POOLING=false
+ENABLE_INDEXING=false
+ENABLE_PAGINATION=false
+REDIS_HOST=redis  # Enable Redis
+REDIS_PORT=6379
+KAFKA_BROKER=kafka:9093  # Enable Kafka
+        </div>
+
+        <h3>Step-by-Step Setup:</h3>
+        <div class="info-box">
+            <p><span class="step-number">1</span> Start Kafka and Zookeeper:</p>
+            <div class="code-block">docker compose up -d zookeeper kafka
+# Wait 10-15 seconds for Kafka to be ready</div>
+            
+            <p><span class="step-number">2</span> Update docker-compose.yml:</p>
+            <div class="code-block"># Set for all services:
+KAFKA_BROKER=kafka:9093</div>
+            
+            <p><span class="step-number">3</span> Rebuild all services:</p>
+            <div class="code-block">docker compose build</div>
+            
+            <p><span class="step-number">4</span> Start all services:</p>
+            <div class="code-block">docker compose up -d</div>
+            
+            <p><span class="step-number">5</span> Verify Kafka topics:</p>
+            <div class="code-block">docker exec kayak-kafka kafka-topics --bootstrap-server localhost:9092 --list
+# Should show: booking.events, billing.events, user.events, etc.</div>
+        </div>
+
+        <h3>Endpoints to Test:</h3>
+        <div class="endpoint-list">
+            <ul>
+                <li><strong>All endpoints from Combination 2</strong></li>
+                <li><strong>POST</strong> /api/bookings (triggers booking.events)</li>
+                <li><strong>POST</strong> /api/billings/process-payment (triggers billing.events)</li>
+                <li><strong>POST</strong> /api/users (triggers user.events)</li>
+                <li><strong>PUT</strong> /api/users/:user_id (triggers user.events)</li>
+            </ul>
+        </div>
+
+        <h3>Expected Behavior:</h3>
+        <ul>
+            <li>Redis caching works (same as Combination 2)</li>
+            <li>Kafka events published on writes</li>
+            <li>Logs show "Published event" messages</li>
+            <li>Saga pattern: Booking → Billing → Booking status update</li>
+            <li>Listing service updates availability via Kafka events</li>
+        </ul>
+
+        <h3>Verification Commands:</h3>
+        <div class="code-block">
+# Check Kafka events
+docker compose logs booking-service | grep "Published event"
+docker compose logs billing-service | grep "Published event"
+docker compose logs user-service | grep "Published event"
+
+# Monitor Kafka topic in real-time
+docker exec -it kayak-kafka kafka-console-consumer \
+  --bootstrap-server localhost:9092 \
+  --topic booking.events \
+  --from-beginning \
+  --max-messages 5
+
+# Test Saga pattern
+# 1. Create booking
+curl -X POST "http://localhost:3003/api/bookings" ...
+# 2. Check logs for booking.events
+# 3. Process payment
+curl -X POST "http://localhost:3004/api/billings/process-payment" ...
+# 4. Check logs for billing.events and booking status update
+        </div>
+    </div>
+
+    <div class="container" id="combination-4">
+        <h2>8. Combination 4: ALL OPTIMIZATIONS</h2>
+        
+        <h3>Configuration:</h3>
+        <div class="code-block">
+# In docker-compose.yml, set for all services:
+ENABLE_POOLING=true
+ENABLE_INDEXING=true
+ENABLE_PAGINATION=true
+REDIS_HOST=redis
+REDIS_PORT=6379
+KAFKA_BROKER=kafka:9093
+        </div>
+
+        <h3>Step-by-Step Setup:</h3>
+        <div class="info-box">
+            <p><span class="step-number">1</span> Update docker-compose.yml with all optimizations enabled</p>
+            
+            <p><span class="step-number">2</span> Apply MySQL indexes:</p>
+            <div class="code-block">cd scripts
+MYSQL_PASSWORD=Anvitha@2310 node runMySQLInit.js
+cd ..</div>
+            
+            <p><span class="step-number">3</span> Rebuild all services:</p>
+            <div class="code-block">docker compose build</div>
+            
+            <p><span class="step-number">4</span> Start all services:</p>
+            <div class="code-block">docker compose up -d</div>
+            
+            <p><span class="step-number">5</span> Verify all optimizations:</p>
+            <div class="code-block"># Connection Pooling
+docker compose logs user-service | grep -i "pooling"
+# Should show: "Connection pooling enabled"
+
+# Redis
+docker exec kayak-redis redis-cli PING
+# Should return: PONG
+
+# Kafka
+docker exec kayak-kafka kafka-topics --bootstrap-server localhost:9092 --list
+
+# MySQL Indexes
+mysql -h localhost -u root -pAnvitha@2310 kayak_db -e "SHOW INDEXES FROM bookings;"
+# Should show multiple indexes
+
+# Pagination
+curl -s "http://localhost:3002/api/flights/search?origin=NYC&destination=LAX&page=1&limit=5" | jq '.pagination'
+# Should show pagination object</div>
+        </div>
+
+        <h3>Endpoints to Test (All Previous + Pagination):</h3>
+        <div class="endpoint-list">
+            <ul>
+                <li><strong>All endpoints from Combination 3</strong></li>
+                <li><strong>GET</strong> /api/flights/search?origin=NYC&destination=LAX&page=1&limit=5</li>
+                <li><strong>GET</strong> /api/hotels/search?city=New%20York&page=1&limit=10</li>
+                <li><strong>GET</strong> /api/cars/search?city=Los%20Angeles&page=1&limit=10</li>
+                <li><strong>GET</strong> /api/analytics/top-properties?year=2024&page=1&limit=20</li>
+            </ul>
+        </div>
+
+        <h3>Expected Behavior:</h3>
+        <ul>
+            <li>All features from Combination 3</li>
+            <li>Connection pooling enabled (faster concurrent requests)</li>
+            <li>Database indexes used (faster queries)</li>
+            <li>Pagination in responses (smaller payloads)</li>
+            <li>Best overall performance</li>
+        </ul>
+    </div>
+
+    <div class="container" id="jmeter-guide">
+        <h2>9. JMeter Testing Guide</h2>
+        
+        <h3>9.1 JMeter Setup</h3>
+        <div class="info-box">
+            <p><strong>Download JMeter:</strong> <a href="https://jmeter.apache.org/download_jmeter.cgi">https://jmeter.apache.org/download_jmeter.cgi</a></p>
+            <p><strong>Installation:</strong> Extract and run <code>bin/jmeter.sh</code> (Linux/Mac) or <code>bin/jmeter.bat</code> (Windows)</p>
+        </div>
+
+        <h3>9.2 Test Plan Structure</h3>
+        <div class="jmeter-config">
+            <p><strong>Test Plan Name:</strong> Kayak Performance Testing</p>
+            <p><strong>Thread Groups:</strong> Create separate thread groups for each combination</p>
+            <p><strong>HTTP Request Defaults:</strong> Set Server Name: <code>localhost</code>, Port: <code>3000</code></p>
+            <p><strong>Listeners:</strong> View Results Tree, Summary Report, Aggregate Report</p>
+        </div>
+
+        <h3>9.3 JMeter Test Plan for Combination 1: BASE</h3>
+        <h4>Thread Group Configuration:</h4>
+        <div class="code-block">
+Number of Threads: 50
+Ramp-up Period: 10 seconds
+Loop Count: 10
+        </div>
+
+        <h4>HTTP Requests to Add:</h4>
+        <table>
+            <tr>
+                <th>Method</th>
+                <th>Path</th>
+                <th>Parameters</th>
+                <th>Name</th>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/flights/search</td>
+                <td>origin=NYC, destination=LAX</td>
+                <td>Flight Search</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/flights/FL001</td>
+                <td>-</td>
+                <td>Flight Details</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/hotels/search</td>
+                <td>city=New%20York</td>
+                <td>Hotel Search</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/hotels/HOTEL001</td>
+                <td>-</td>
+                <td>Hotel Details</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/cars/search</td>
+                <td>city=Los%20Angeles</td>
+                <td>Car Search</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/users/123-45-6789</td>
+                <td>-</td>
+                <td>Get User</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/bookings/BK123456</td>
+                <td>-</td>
+                <td>Get Booking</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/bookings/users/USER123/bookings</td>
+                <td>-</td>
+                <td>Get User Bookings</td>
+            </tr>
+            <tr>
+                <td>POST</td>
+                <td>/api/bookings</td>
+                <td>Body: JSON booking data</td>
+                <td>Create Booking</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/analytics/top-properties</td>
+                <td>year=2024</td>
+                <td>Top Properties</td>
+            </tr>
+        </table>
+
+        <h4>Sample JSON Body for Create Booking:</h4>
+        <div class="code-block">
+{
+  "user_id": "123-45-6789",
+  "booking_type": "Flight",
+  "reference_id": "FL001",
+  "start_date": "2024-12-25T08:00:00Z",
+  "end_date": "2024-12-25T11:30:00Z",
+  "total_price": 350
+}
+        </div>
+
+        <h3>9.4 JMeter Test Plan for Combination 2: BASE + REDIS</h3>
+        <div class="warning-box">
+            <p><strong>Important:</strong> Use the same test plan as Combination 1, but:</p>
+            <ul>
+                <li>Run each request twice in sequence to test cache hits</li>
+                <li>Add a "Cache Test" thread group that makes the same request 10 times</li>
+                <li>Compare response times: first request (cache miss) vs subsequent (cache hit)</li>
+            </ul>
+        </div>
+
+        <h4>Cache Test Thread Group:</h4>
+        <div class="code-block">
+Number of Threads: 1
+Ramp-up Period: 1 second
+Loop Count: 20
+        </div>
+        <p>Use this to measure cache hit performance - same request repeated 20 times.</p>
+
+        <h3>9.5 JMeter Test Plan for Combination 3: BASE + REDIS + KAFKA</h3>
+        <div class="info-box">
+            <p>Add these additional requests to test Kafka event flow:</p>
+        </div>
+        <table>
+            <tr>
+                <th>Method</th>
+                <th>Path</th>
+                <th>Purpose</th>
+            </tr>
+            <tr>
+                <td>POST</td>
+                <td>/api/bookings</td>
+                <td>Triggers booking.events</td>
+            </tr>
+            <tr>
+                <td>POST</td>
+                <td>/api/billings/process-payment</td>
+                <td>Triggers billing.events (Saga pattern)</td>
+            </tr>
+            <tr>
+                <td>POST</td>
+                <td>/api/users</td>
+                <td>Triggers user.events</td>
+            </tr>
+        </table>
+
+        <h3>9.6 JMeter Test Plan for Combination 4: ALL OPTIMIZATIONS</h3>
+        <h4>Add Pagination Parameters:</h4>
+        <table>
+            <tr>
+                <th>Endpoint</th>
+                <th>Additional Parameters</th>
+            </tr>
+            <tr>
+                <td>/api/flights/search</td>
+                <td>page=1, limit=20</td>
+            </tr>
+            <tr>
+                <td>/api/hotels/search</td>
+                <td>page=1, limit=20</td>
+            </tr>
+            <tr>
+                <td>/api/cars/search</td>
+                <td>page=1, limit=20</td>
+            </tr>
+            <tr>
+                <td>/api/analytics/top-properties</td>
+                <td>page=1, limit=20</td>
+            </tr>
+        </table>
+
+        <h4>Concurrent Load Test:</h4>
+        <div class="code-block">
+Number of Threads: 100
+Ramp-up Period: 20 seconds
+Loop Count: 5
+        </div>
+        <p>This tests connection pooling under high concurrent load.</p>
+
+        <h3>9.7 JMeter Listeners & Metrics</h3>
+        <div class="info-box">
+            <p><strong>Key Metrics to Collect:</strong></p>
+            <ul>
+                <li><strong>Response Time:</strong> Average, Min, Max, 95th percentile</li>
+                <li><strong>Throughput:</strong> Requests per second</li>
+                <li><strong>Error Rate:</strong> Percentage of failed requests</li>
+                <li><strong>Cache Hit Rate:</strong> (For Combination 2-4) Check response for "cached": true</li>
+            </ul>
+        </div>
+
+        <h3>9.8 JMeter Configuration Script</h3>
+        <div class="code-block">
+# Save as: jmeter_test_config.sh
+
+#!/bin/bash
+
+BASE_URL="http://localhost:3000"
+
+# Combination 1: BASE
+echo "Testing Combination 1: BASE"
+jmeter -n -t test_plan_base.jmx -l results_base.jtl -e -o report_base/
+
+# Combination 2: BASE + REDIS
+echo "Testing Combination 2: BASE + REDIS"
+jmeter -n -t test_plan_redis.jmx -l results_redis.jtl -e -o report_redis/
+
+# Combination 3: BASE + REDIS + KAFKA
+echo "Testing Combination 3: BASE + REDIS + KAFKA"
+jmeter -n -t test_plan_kafka.jmx -l results_kafka.jtl -e -o report_kafka/
+
+# Combination 4: ALL OPTIMIZATIONS
+echo "Testing Combination 4: ALL OPTIMIZATIONS"
+jmeter -n -t test_plan_all.jmx -l results_all.jtl -e -o report_all/
+        </div>
+    </div>
+
+    <div class="container" id="endpoints">
+        <h2>10. Complete Endpoint List for Testing</h2>
+        
+        <h3>User Service Endpoints:</h3>
+        <table>
+            <tr>
+                <th>Method</th>
+                <th>Endpoint</th>
+                <th>Description</th>
+                <th>Redis Cached</th>
+            </tr>
+            <tr>
+                <td>POST</td>
+                <td>/api/users</td>
+                <td>Create user</td>
+                <td>No (invalidates cache)</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/users/:user_id</td>
+                <td>Get user by ID</td>
+                <td>Yes</td>
+            </tr>
+            <tr>
+                <td>PUT</td>
+                <td>/api/users/:user_id</td>
+                <td>Update user</td>
+                <td>No (invalidates cache)</td>
+            </tr>
+            <tr>
+                <td>DELETE</td>
+                <td>/api/users/:user_id</td>
+                <td>Delete user</td>
+                <td>No (invalidates cache)</td>
+            </tr>
+            <tr>
+                <td>POST</td>
+                <td>/api/users/login</td>
+                <td>User login</td>
+                <td>Yes (after login)</td>
+            </tr>
+        </table>
+
+        <h3>Listing Service Endpoints:</h3>
+        <table>
+            <tr>
+                <th>Method</th>
+                <th>Endpoint</th>
+                <th>Description</th>
+                <th>Redis Cached</th>
+                <th>Pagination</th>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/flights/search</td>
+                <td>Search flights</td>
+                <td>Yes</td>
+                <td>Yes (Combination 4)</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/flights/:flight_id</td>
+                <td>Get flight details</td>
+                <td>Yes</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/hotels/search</td>
+                <td>Search hotels</td>
+                <td>Yes</td>
+                <td>Yes (Combination 4)</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/hotels/:hotel_id</td>
+                <td>Get hotel details</td>
+                <td>Yes</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/cars/search</td>
+                <td>Search cars</td>
+                <td>Yes</td>
+                <td>Yes (Combination 4)</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/cars/:car_id</td>
+                <td>Get car details</td>
+                <td>Yes</td>
+                <td>No</td>
+            </tr>
+        </table>
+
+        <h3>Booking Service Endpoints:</h3>
+        <table>
+            <tr>
+                <th>Method</th>
+                <th>Endpoint</th>
+                <th>Description</th>
+                <th>Redis Cached</th>
+                <th>Kafka Event</th>
+            </tr>
+            <tr>
+                <td>POST</td>
+                <td>/api/bookings</td>
+                <td>Create booking</td>
+                <td>No (invalidates cache)</td>
+                <td>booking.events</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/bookings/:booking_id</td>
+                <td>Get booking</td>
+                <td>Yes</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/bookings/users/:user_id/bookings</td>
+                <td>Get user bookings</td>
+                <td>Yes</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>PUT</td>
+                <td>/api/bookings/:booking_id/cancel</td>
+                <td>Cancel booking</td>
+                <td>No (invalidates cache)</td>
+                <td>booking.events</td>
+            </tr>
+            <tr>
+                <td>PUT</td>
+                <td>/api/bookings/:booking_id/confirm</td>
+                <td>Confirm booking</td>
+                <td>No (invalidates cache)</td>
+                <td>booking.events</td>
+            </tr>
+        </table>
+
+        <h3>Billing Service Endpoints:</h3>
+        <table>
+            <tr>
+                <th>Method</th>
+                <th>Endpoint</th>
+                <th>Description</th>
+                <th>Redis Cached</th>
+                <th>Kafka Event</th>
+            </tr>
+            <tr>
+                <td>POST</td>
+                <td>/api/billings/process-payment</td>
+                <td>Process payment</td>
+                <td>No (invalidates cache)</td>
+                <td>billing.events</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/billings/:billing_id</td>
+                <td>Get billing</td>
+                <td>Yes</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/billings/users/:user_id</td>
+                <td>Get user billings</td>
+                <td>Yes</td>
+                <td>No</td>
+            </tr>
+        </table>
+
+        <h3>Admin Analytics Service Endpoints:</h3>
+        <table>
+            <tr>
+                <th>Method</th>
+                <th>Endpoint</th>
+                <th>Description</th>
+                <th>Redis Cached</th>
+                <th>Pagination</th>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/analytics/top-properties</td>
+                <td>Top properties by revenue</td>
+                <td>Yes</td>
+                <td>Yes (Combination 4)</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/analytics/city-revenue</td>
+                <td>Revenue by city</td>
+                <td>Yes</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/analytics/top-providers</td>
+                <td>Top providers</td>
+                <td>Yes</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/analytics/bills</td>
+                <td>Billing records</td>
+                <td>Yes</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/analytics/listing-clicks</td>
+                <td>Listing click analytics</td>
+                <td>Yes</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>GET</td>
+                <td>/api/analytics/clicks-per-page</td>
+                <td>Page activity analytics</td>
+                <td>Yes</td>
+                <td>No</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="container">
+        <h2>11. Quick Reference: Enable/Disable Features</h2>
+        
+        <h3>Docker Compose Environment Variables:</h3>
+        <div class="code-block">
+# Disable all optimizations (Combination 1)
+ENABLE_POOLING=false
+ENABLE_INDEXING=false
+ENABLE_PAGINATION=false
+REDIS_HOST=disabled
+KAFKA_BROKER=disabled
+
+# Enable only Redis (Combination 2)
+ENABLE_POOLING=false
+ENABLE_INDEXING=false
+ENABLE_PAGINATION=false
+REDIS_HOST=redis
+REDIS_PORT=6379
+KAFKA_BROKER=disabled
+
+# Enable Redis + Kafka (Combination 3)
+ENABLE_POOLING=false
+ENABLE_INDEXING=false
+ENABLE_PAGINATION=false
+REDIS_HOST=redis
+REDIS_PORT=6379
+KAFKA_BROKER=kafka:9093
+
+# Enable all (Combination 4)
+ENABLE_POOLING=true
+ENABLE_INDEXING=true
+ENABLE_PAGINATION=true
+REDIS_HOST=redis
+REDIS_PORT=6379
+KAFKA_BROKER=kafka:9093
+        </div>
+
+        <h3>Service Restart Commands:</h3>
+        <div class="code-block">
+# Restart specific service
+docker compose restart user-service
+
+# Rebuild and restart
+docker compose build user-service
+docker compose up -d user-service
+
+# Restart all services
+docker compose restart
+
+# Rebuild all
+docker compose build
+docker compose up -d
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>12. Performance Metrics Collection</h2>
+        
+        <h3>Metrics to Record for Each Combination:</h3>
+        <table>
+            <tr>
+                <th>Metric</th>
+                <th>How to Measure</th>
+            </tr>
+            <tr>
+                <td>Average Response Time</td>
+                <td>JMeter Summary Report</td>
+            </tr>
+            <tr>
+                <td>95th Percentile Response Time</td>
+                <td>JMeter Aggregate Report</td>
+            </tr>
+            <tr>
+                <td>Throughput (req/sec)</td>
+                <td>JMeter Summary Report</td>
+            </tr>
+            <tr>
+                <td>Error Rate</td>
+                <td>JMeter Summary Report</td>
+            </tr>
+            <tr>
+                <td>Cache Hit Rate</td>
+                <td>Count responses with "cached": true / total requests</td>
+            </tr>
+            <tr>
+                <td>Kafka Event Latency</td>
+                <td>Time between event publish and consume (check logs)</td>
+            </tr>
+            <tr>
+                <td>Database Query Time</td>
+                <td>Compare cached vs non-cached response times</td>
+            </tr>
+        </table>
+
+        <h3>Expected Performance Improvements:</h3>
+        <div class="success-box">
+            <p><strong>Combination 2 (Redis):</strong> 50-80% faster on cache hits</p>
+            <p><strong>Combination 3 (Redis + Kafka):</strong> Same as 2, plus async event processing</p>
+            <p><strong>Combination 4 (All):</strong> 60-90% faster overall, better concurrent performance</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>13. Troubleshooting</h2>
+        
+        <h3>Common Issues:</h3>
+        <div class="warning-box">
+            <p><strong>Issue:</strong> Redis connection failed</p>
+            <p><strong>Solution:</strong> Check Redis is running: <code>docker compose ps redis</code></p>
+        </div>
+
+        <div class="warning-box">
+            <p><strong>Issue:</strong> Kafka topics not created</p>
+            <p><strong>Solution:</strong> Topics auto-create on first message. Check: <code>docker compose logs kafka</code></p>
+        </div>
+
+        <div class="warning-box">
+            <p><strong>Issue:</strong> No cache hits</p>
+            <p><strong>Solution:</strong> Verify REDIS_HOST=redis in docker-compose.yml and service logs show "Redis connected"</p>
+        </div>
+
+        <div class="warning-box">
+            <p><strong>Issue:</strong> Pagination not working</p>
+            <p><strong>Solution:</strong> Set ENABLE_PAGINATION=true and include page/limit parameters in requests</p>
+        </div>
+    </div>
+
+    <footer style="text-align: center; margin-top: 50px; padding: 20px; color: #666;">
+        <p>Kayak Simulation Project - Performance Testing Guide</p>
+        <p>Generated: <script>document.write(new Date().toLocaleDateString());</script></p>
+    </footer>
+</body>
+</html>
+

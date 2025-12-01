@@ -1,5 +1,8 @@
 const mysql = require('mysql2/promise');
 
+// Feature flag for connection pooling
+const ENABLE_POOLING = process.env.ENABLE_POOLING !== 'false'; // Default: enabled
+
 // MySQL connection pool configuration for ACID compliance
 const pool = mysql.createPool({
   host: process.env.MYSQL_HOST || 'localhost',
@@ -8,10 +11,11 @@ const pool = mysql.createPool({
   password: process.env.MYSQL_PASSWORD || '',
   database: process.env.MYSQL_DATABASE || 'kayak_db',
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: ENABLE_POOLING ? parseInt(process.env.MYSQL_POOL_SIZE || '10') : 1,
   queueLimit: 0,
   enableKeepAlive: true,
-  keepAliveInitialDelay: 0
+  keepAliveInitialDelay: 0,
+  idleTimeout: 60000 // Close idle connections after 60s
 });
 
 // Test connection
@@ -21,6 +25,10 @@ const connectMySQL = async () => {
     await connection.ping();
     connection.release();
     console.log(`[Billing Service] MySQL Connected: ${process.env.MYSQL_HOST || 'localhost'}:${process.env.MYSQL_PORT || 3306}/${process.env.MYSQL_DATABASE || 'kayak_db'}`);
+    if (ENABLE_POOLING) {
+      const poolSize = parseInt(process.env.MYSQL_POOL_SIZE || '10');
+      console.log(`[Billing Service] Connection pooling enabled (limit: ${poolSize})`);
+    }
     return pool;
   } catch (error) {
     console.error(`[Billing Service] MySQL connection error: ${error.message}`);

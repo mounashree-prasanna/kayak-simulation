@@ -1,4 +1,8 @@
 const mongoose = require('mongoose');
+const { get: redisGet, set: redisSet, del: redisDel, delPattern: redisDelPattern } = require('../config/redis');
+
+// Redis TTL configuration
+const REDIS_TTL = parseInt(process.env.REDIS_TTL || '1800'); // 30 minutes default
 
 const Booking = mongoose.model('Booking', new mongoose.Schema({}, { strict: false, collection: 'bookings' }));
 const Billing = mongoose.model('Billing', new mongoose.Schema({}, { strict: false, collection: 'billings' }));
@@ -11,8 +15,35 @@ const UserTrace = mongoose.model('UserTrace', new mongoose.Schema({}, { strict: 
 
 const getTopProperties = async (req, res) => {
   try {
-    const { year } = req.query;
+    // Feature flag for pagination
+    const ENABLE_PAGINATION = process.env.ENABLE_PAGINATION !== 'false'; // Default: enabled
+    
+    const { year, page, limit } = req.query;
     const yearNum = year ? Number(year) : new Date().getFullYear();
+    
+    // Pagination parameters
+    const pageNum = ENABLE_PAGINATION ? parseInt(page) || 1 : 1;
+    const pageSize = ENABLE_PAGINATION ? parseInt(limit) || 20 : 10; // Default 20 when enabled, 10 when disabled
+    const skip = (pageNum - 1) * pageSize;
+
+    // Build cache key
+    const cacheKey = `analytics:top-properties:${yearNum}:${pageNum}:${pageSize}`;
+
+    // Check Redis cache first (cache-aside pattern)
+    try {
+      const cached = await redisGet(cacheKey);
+      if (cached) {
+        const cachedResult = JSON.parse(cached);
+        console.log(`[Admin Analytics] Cache HIT for top properties: ${cacheKey}`);
+        return res.status(200).json({
+          ...cachedResult,
+          cached: true
+        });
+      }
+      console.log(`[Admin Analytics] Cache MISS for top properties: ${cacheKey}`);
+    } catch (redisError) {
+      console.warn('[Admin Analytics] Redis cache miss or error, falling back to MongoDB:', redisError.message);
+    }
 
     const startDate = new Date(yearNum, 0, 1);
     const endDate = new Date(yearNum + 1, 0, 1);
@@ -45,7 +76,8 @@ const getTopProperties = async (req, res) => {
         }
       },
       { $sort: { total_revenue: -1 } },
-      { $limit: 10 },
+      { $skip: skip },
+      { $limit: pageSize },
       {
         $project: {
           _id: 0,
@@ -57,12 +89,66 @@ const getTopProperties = async (req, res) => {
       }
     ]);
 
-    res.status(200).json({
+    // Get total count for pagination metadata (only if pagination is enabled)
+    let totalCount = result.length;
+    let totalPages = 1;
+    if (ENABLE_PAGINATION) {
+      // Count total without pagination
+      const countResult = await Billing.aggregate([
+        {
+          $match: {
+            transaction_date: { $gte: startDate, $lt: endDate },
+            transaction_status: 'Success'
+          }
+        },
+        {
+          $lookup: {
+            from: 'bookings',
+            localField: 'booking_id',
+            foreignField: 'booking_id',
+            as: 'booking'
+          }
+        },
+        { $unwind: '$booking' },
+        {
+          $group: {
+            _id: {
+              type: '$booking.booking_type',
+              reference_id: '$booking.reference_id'
+            }
+          }
+        }
+      ]);
+      totalCount = countResult.length;
+      totalPages = Math.ceil(totalCount / pageSize);
+    }
+
+    const response = {
       success: true,
       year: yearNum,
       count: result.length,
+      ...(ENABLE_PAGINATION && {
+        pagination: {
+          page: pageNum,
+          limit: pageSize,
+          total: totalCount,
+          totalPages: totalPages,
+          hasNextPage: pageNum < totalPages,
+          hasPrevPage: pageNum > 1
+        }
+      }),
       data: result
-    });
+    };
+
+    // Cache the result in Redis with TTL
+    try {
+      await redisSet(cacheKey, JSON.stringify(response), REDIS_TTL);
+      console.log(`[Admin Analytics] Cached top properties: ${cacheKey}`);
+    } catch (redisError) {
+      console.warn('[Admin Analytics] Failed to cache top properties:', redisError.message);
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -73,8 +159,27 @@ const getTopProperties = async (req, res) => {
 
 const getCityRevenue = async (req, res) => {
   try {
-    const { year } = req.query;
+    const { year, city } = req.query;
     const yearNum = year ? Number(year) : new Date().getFullYear();
+
+    // Build cache key
+    const cacheKey = `analytics:city-revenue:${city || 'all'}:${yearNum}`;
+
+    // Check Redis cache first (cache-aside pattern)
+    try {
+      const cached = await redisGet(cacheKey);
+      if (cached) {
+        const cachedResult = JSON.parse(cached);
+        console.log(`[Admin Analytics] Cache HIT for city revenue: ${cacheKey}`);
+        return res.status(200).json({
+          ...cachedResult,
+          cached: true
+        });
+      }
+      console.log(`[Admin Analytics] Cache MISS for city revenue: ${cacheKey}`);
+    } catch (redisError) {
+      console.warn('[Admin Analytics] Redis cache miss or error, falling back to MongoDB:', redisError.message);
+    }
 
     const startDate = new Date(yearNum, 0, 1);
     const endDate = new Date(yearNum + 1, 0, 1);
@@ -148,12 +253,22 @@ const getCityRevenue = async (req, res) => {
       }
     ]);
 
-    res.status(200).json({
+    const response = {
       success: true,
       year: yearNum,
       count: result.length,
       data: result
-    });
+    };
+
+    // Cache the result in Redis with TTL
+    try {
+      await redisSet(cacheKey, JSON.stringify(response), REDIS_TTL);
+      console.log(`[Admin Analytics] Cached city revenue: ${cacheKey}`);
+    } catch (redisError) {
+      console.warn('[Admin Analytics] Failed to cache city revenue:', redisError.message);
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -167,6 +282,25 @@ const getTopProviders = async (req, res) => {
     const { month, year } = req.query;
     const monthNum = month ? Number(month) : new Date().getMonth() + 1;
     const yearNum = year ? Number(year) : new Date().getFullYear();
+
+    // Build cache key
+    const cacheKey = `analytics:top-providers:${yearNum}:${monthNum}`;
+
+    // Check Redis cache first (cache-aside pattern)
+    try {
+      const cached = await redisGet(cacheKey);
+      if (cached) {
+        const cachedResult = JSON.parse(cached);
+        console.log(`[Admin Analytics] Cache HIT for top providers: ${cacheKey}`);
+        return res.status(200).json({
+          ...cachedResult,
+          cached: true
+        });
+      }
+      console.log(`[Admin Analytics] Cache MISS for top providers: ${cacheKey}`);
+    } catch (redisError) {
+      console.warn('[Admin Analytics] Redis cache miss or error, falling back to MongoDB:', redisError.message);
+    }
 
     const startDate = new Date(yearNum, monthNum - 1, 1);
     const endDate = new Date(yearNum, monthNum, 1);
@@ -241,13 +375,23 @@ const getTopProviders = async (req, res) => {
       }
     ]);
 
-    res.status(200).json({
+    const response = {
       success: true,
       month: monthNum,
       year: yearNum,
       count: result.length,
       data: result
-    });
+    };
+
+    // Cache the result in Redis with TTL
+    try {
+      await redisSet(cacheKey, JSON.stringify(response), REDIS_TTL);
+      console.log(`[Admin Analytics] Cached top providers: ${cacheKey}`);
+    } catch (redisError) {
+      console.warn('[Admin Analytics] Failed to cache top providers:', redisError.message);
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -259,6 +403,25 @@ const getTopProviders = async (req, res) => {
 const getBills = async (req, res) => {
   try {
     const { date, month, year } = req.query;
+
+    // Build cache key
+    const cacheKey = `analytics:bills:${date || ''}:${month || ''}:${year || ''}`;
+
+    // Check Redis cache first (cache-aside pattern)
+    try {
+      const cached = await redisGet(cacheKey);
+      if (cached) {
+        const cachedResult = JSON.parse(cached);
+        console.log(`[Admin Analytics] Cache HIT for bills: ${cacheKey}`);
+        return res.status(200).json({
+          ...cachedResult,
+          cached: true
+        });
+      }
+      console.log(`[Admin Analytics] Cache MISS for bills: ${cacheKey}`);
+    } catch (redisError) {
+      console.warn('[Admin Analytics] Redis cache miss or error, falling back to MongoDB:', redisError.message);
+    }
 
     const query = {};
 
@@ -275,11 +438,21 @@ const getBills = async (req, res) => {
 
     const bills = await Billing.find(query).sort({ transaction_date: -1 }).limit(1000);
 
-    res.status(200).json({
+    const response = {
       success: true,
       count: bills.length,
       data: bills
-    });
+    };
+
+    // Cache the result in Redis with TTL
+    try {
+      await redisSet(cacheKey, JSON.stringify(response), REDIS_TTL);
+      console.log(`[Admin Analytics] Cached bills: ${cacheKey}`);
+    } catch (redisError) {
+      console.warn('[Admin Analytics] Failed to cache bills:', redisError.message);
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -290,6 +463,25 @@ const getBills = async (req, res) => {
 
 const getClicksPerPage = async (req, res) => {
   try {
+    // Build cache key
+    const cacheKey = `analytics:page-activity:all`;
+
+    // Check Redis cache first (cache-aside pattern)
+    try {
+      const cached = await redisGet(cacheKey);
+      if (cached) {
+        const cachedResult = JSON.parse(cached);
+        console.log(`[Admin Analytics] Cache HIT for page activity: ${cacheKey}`);
+        return res.status(200).json({
+          ...cachedResult,
+          cached: true
+        });
+      }
+      console.log(`[Admin Analytics] Cache MISS for page activity: ${cacheKey}`);
+    } catch (redisError) {
+      console.warn('[Admin Analytics] Redis cache miss or error, falling back to MongoDB:', redisError.message);
+    }
+
     const result = await PageClickLog.aggregate([
       {
         $group: {
@@ -309,11 +501,21 @@ const getClicksPerPage = async (req, res) => {
       { $sort: { total_clicks: -1 } }
     ]);
 
-    res.status(200).json({
+    const response = {
       success: true,
       count: result.length,
       data: result
-    });
+    };
+
+    // Cache the result in Redis with TTL
+    try {
+      await redisSet(cacheKey, JSON.stringify(response), REDIS_TTL);
+      console.log(`[Admin Analytics] Cached page activity: ${cacheKey}`);
+    } catch (redisError) {
+      console.warn('[Admin Analytics] Failed to cache page activity:', redisError.message);
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -324,7 +526,32 @@ const getClicksPerPage = async (req, res) => {
 
 const getListingClicks = async (req, res) => {
   try {
+    const { listing_id } = req.query;
+
+    // Build cache key
+    const cacheKey = listing_id 
+      ? `analytics:listing-clicks:${listing_id}`
+      : `analytics:listing-clicks:all`;
+
+    // Check Redis cache first (cache-aside pattern)
+    try {
+      const cached = await redisGet(cacheKey);
+      if (cached) {
+        const cachedResult = JSON.parse(cached);
+        console.log(`[Admin Analytics] Cache HIT for listing clicks: ${cacheKey}`);
+        return res.status(200).json({
+          ...cachedResult,
+          cached: true
+        });
+      }
+      console.log(`[Admin Analytics] Cache MISS for listing clicks: ${cacheKey}`);
+    } catch (redisError) {
+      console.warn('[Admin Analytics] Redis cache miss or error, falling back to MongoDB:', redisError.message);
+    }
+
+    const matchStage = listing_id ? { $match: { listing_id } } : { $match: {} };
     const result = await ListingClickLog.aggregate([
+      matchStage,
       {
         $group: {
           _id: {
@@ -348,11 +575,21 @@ const getListingClicks = async (req, res) => {
       { $limit: 100 }
     ]);
 
-    res.status(200).json({
+    const response = {
       success: true,
       count: result.length,
       data: result
-    });
+    };
+
+    // Cache the result in Redis with TTL
+    try {
+      await redisSet(cacheKey, JSON.stringify(response), REDIS_TTL);
+      console.log(`[Admin Analytics] Cached listing clicks: ${cacheKey}`);
+    } catch (redisError) {
+      console.warn('[Admin Analytics] Failed to cache listing clicks:', redisError.message);
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     res.status(500).json({
       success: false,

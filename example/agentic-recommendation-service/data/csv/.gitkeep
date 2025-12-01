@@ -1,0 +1,10 @@
+# Place CSV files here
+# Structure:
+# csv/
+#   hotels/
+#     airbnb_nyc_listings.csv
+#     hotel_booking_demand.csv
+#   flights/
+#     flight_prices.csv
+#     flight_schedules.csv
+

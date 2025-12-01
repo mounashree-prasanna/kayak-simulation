@@ -84,12 +84,30 @@ hotelSchema.pre('save', function(next) {
   next();
 });
 
+// Feature flag for indexing
+const ENABLE_INDEXING = process.env.ENABLE_INDEXING !== 'false'; // Default: enabled
+
 // Indexes
 hotelSchema.index({ hotel_id: 1 }, { unique: true });
-hotelSchema.index({ 'address.city': 1, price_per_night: 1 });
-hotelSchema.index({ star_rating: 1 });
-hotelSchema.index({ hotel_rating: 1 });
-hotelSchema.index({ 'amenities.pet_friendly': 1, 'amenities.wifi': 1 });
+
+if (ENABLE_INDEXING) {
+  // Single-field indexes for common queries
+  hotelSchema.index({ 'address.city': 1 });
+  hotelSchema.index({ price_per_night: 1 });
+  hotelSchema.index({ star_rating: 1 });
+  hotelSchema.index({ hotel_rating: 1 });
+  
+  // Compound indexes for multi-field searches
+  hotelSchema.index({ 'address.city': 1, price_per_night: 1 });
+  hotelSchema.index({ 'address.city': 1, star_rating: 1 });
+  hotelSchema.index({ 'amenities.pet_friendly': 1, 'amenities.wifi': 1 });
+} else {
+  // Minimal indexes when indexing is disabled
+  hotelSchema.index({ 'address.city': 1, price_per_night: 1 });
+  hotelSchema.index({ star_rating: 1 });
+  hotelSchema.index({ hotel_rating: 1 });
+  hotelSchema.index({ 'amenities.pet_friendly': 1, 'amenities.wifi': 1 });
+}
 
 module.exports = mongoose.model('Hotel', hotelSchema);
 
