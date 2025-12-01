@@ -9,8 +9,12 @@ import json
 from src.database import init_db
 from src.routes.bundles import router as bundles_router
 from src.routes.deals import router as deals_router
+from src.routes.intent import router as intent_router
+from src.routes.ingest import router as ingest_router
 from src.websocket_manager import ConnectionManager
 from src.kafka_consumer import KafkaConsumerService
+from src.services.deals_agent import NormalizationStage, DealDetector, OfferTagger
+import asyncio
 
 load_dotenv()
 
@@ -26,8 +30,10 @@ app.add_middleware(
 )
 
 # Routes
+app.include_router(intent_router, prefix="/intent", tags=["intent"])
 app.include_router(bundles_router, prefix="/bundles", tags=["bundles"])
 app.include_router(deals_router, prefix="/deals", tags=["deals"])
+app.include_router(ingest_router, prefix="/ingest", tags=["ingest"])
 
 # WebSocket manager
 manager = ConnectionManager()
@@ -35,14 +41,42 @@ manager = ConnectionManager()
 # Kafka consumer service (for WebSocket bridge)
 kafka_consumer_service = None
 
+# Pipeline stages
+normalization_stage = None
+deal_detector = None
+offer_tagger = None
+
 # Initialize database and Kafka consumer
 @app.on_event("startup")
 async def startup_event():
-    global kafka_consumer_service
+    global kafka_consumer_service, normalization_stage, deal_detector, offer_tagger
     
     # Initialize database
     await init_db()
     print("[Recommendation Service] Database initialized")
+    
+    # Start pipeline stages as background tasks
+    try:
+        normalization_stage = NormalizationStage()
+        deal_detector = DealDetector()
+        offer_tagger = OfferTagger()
+        
+        await normalization_stage.start()
+        await deal_detector.start()
+        await offer_tagger.start()
+        
+        # Start processing in background
+        asyncio.create_task(normalization_stage.process())
+        asyncio.create_task(deal_detector.process())
+        asyncio.create_task(offer_tagger.process())
+        
+        print("[Recommendation Service] Pipeline stages started")
+    except Exception as e:
+        print(f"[Recommendation Service] Warning: Could not start pipeline stages: {str(e)}")
+        print("[Recommendation Service] Service will continue without pipeline processing")
+        normalization_stage = None
+        deal_detector = None
+        offer_tagger = None
     
     # Initialize Kafka consumer for WebSocket bridge
     try:
@@ -83,7 +117,18 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown"""
-    global kafka_consumer_service
+    global kafka_consumer_service, normalization_stage, deal_detector, offer_tagger
+    
+    # Stop pipeline stages
+    if normalization_stage:
+        await normalization_stage.stop()
+    if deal_detector:
+        await deal_detector.stop()
+    if offer_tagger:
+        await offer_tagger.stop()
+    print("[Recommendation Service] Pipeline stages stopped")
+    
+    # Stop Kafka consumer
     if kafka_consumer_service:
         await kafka_consumer_service.stop()
         print("[Recommendation Service] Kafka consumer stopped")

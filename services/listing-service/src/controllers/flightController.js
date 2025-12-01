@@ -1,11 +1,37 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 const Flight = require('../models/Flight');
 const { filterByAvailability } = require('../utils/availabilityChecker');
 const AvailabilityService = require('../utils/availabilityService');
+const { get: redisGet, set: redisSet, del: redisDel, delPattern: redisDelPattern } = require('../config/redis');
+
+// Redis TTL configuration
+const REDIS_TTL_SEARCH = parseInt(process.env.REDIS_TTL_SEARCH || '600'); // 10 minutes default for search results
+const REDIS_TTL_DETAILS = parseInt(process.env.REDIS_TTL_DETAILS || '1800'); // 30 minutes default for listing details
+
+/**
+ * Generate cache key for search queries
+ */
+const generateSearchCacheKey = (type, params) => {
+  const sortedParams = Object.keys(params)
+    .sort()
+    .map(key => `${key}:${params[key]}`)
+    .join('|');
+  const hash = crypto.createHash('md5').update(sortedParams).digest('hex');
+  return `${type}:search:${hash}`;
+};
 
 const searchFlights = async (req, res) => {
   try {
-    const { origin, destination, date, minPrice, maxPrice, flightClass } = req.query;
+    // Feature flag for pagination
+    const ENABLE_PAGINATION = process.env.ENABLE_PAGINATION !== 'false'; // Default: enabled
+    
+    const { origin, destination, date, minPrice, maxPrice, flightClass, page, limit } = req.query;
+    
+    // Pagination parameters
+    const pageNum = ENABLE_PAGINATION ? parseInt(page) || 1 : 1;
+    const pageSize = ENABLE_PAGINATION ? parseInt(limit) || 20 : 100; // Default 20 when enabled, 100 when disabled
+    const skip = (pageNum - 1) * pageSize;
 
     // Validate required parameters
     if (!origin || !origin.trim()) {
@@ -387,7 +413,8 @@ const searchFlights = async (req, res) => {
 
     let flights = await Flight.find(query)
       .sort({ departure_datetime: 1, ticket_price: 1 })
-      .limit(100);
+      .skip(skip)
+      .limit(pageSize);
 
     console.log(`[Flight Controller] Found ${flights.length} flights matching full query`);
     
@@ -567,11 +594,71 @@ const searchFlights = async (req, res) => {
       }
     }
 
-    res.status(200).json({
+    // Get total count for pagination metadata (only if pagination is enabled)
+    // Build cache key for search results
+    const searchParams = {
+      origin: origin || '',
+      destination: destination || '',
+      date: date || '',
+      minPrice: minPrice || '',
+      maxPrice: maxPrice || '',
+      flightClass: flightClass || '',
+      page: pageNum,
+      limit: pageSize
+    };
+    const cacheKey = generateSearchCacheKey('flights', searchParams);
+
+    // Check Redis cache first (cache-aside pattern)
+    try {
+      const cached = await redisGet(cacheKey);
+      if (cached) {
+        const cachedResult = JSON.parse(cached);
+        console.log(`[Flight Controller] Cache HIT for search: ${cacheKey}`);
+        return res.status(200).json({
+          ...cachedResult,
+          cached: true
+        });
+      }
+      console.log(`[Flight Controller] Cache MISS for search: ${cacheKey}`);
+    } catch (redisError) {
+      // If Redis fails, continue to MongoDB query (graceful degradation)
+      console.warn('[Flight Controller] Redis cache miss or error, falling back to MongoDB:', redisError.message);
+    }
+
+    // Cache miss - continue with existing query logic
+    let totalCount = flights.length;
+    let totalPages = 1;
+    if (ENABLE_PAGINATION) {
+      totalCount = await Flight.countDocuments(query);
+      totalPages = Math.ceil(totalCount / pageSize);
+    }
+
+    const response = {
       success: true,
       count: flights.length,
+      ...(ENABLE_PAGINATION && {
+        pagination: {
+          page: pageNum,
+          limit: pageSize,
+          total: totalCount,
+          totalPages: totalPages,
+          hasNextPage: pageNum < totalPages,
+          hasPrevPage: pageNum > 1
+        }
+      }),
       data: flights
-    });
+    };
+
+    // Cache the result in Redis with TTL
+    try {
+      await redisSet(cacheKey, JSON.stringify(response), REDIS_TTL_SEARCH);
+      console.log(`[Flight Controller] Cached search results: ${cacheKey}`);
+    } catch (redisError) {
+      // Log but don't fail the request if caching fails
+      console.warn('[Flight Controller] Failed to cache search results:', redisError.message);
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -585,6 +672,33 @@ const getFlight = async (req, res) => {
     const { flight_id } = req.params;
     const { date } = req.query; // Optional date parameter to calculate available seats
 
+    // Check Redis cache first (cache-aside pattern)
+    const cacheKey = `flight:${flight_id}`;
+    try {
+      const cached = await redisGet(cacheKey);
+      if (cached) {
+        const cachedFlight = JSON.parse(cached);
+        console.log(`[Flight Controller] Cache HIT for flight: ${flight_id}`);
+        
+        // If date is provided, we still need to recalculate availability
+        if (date) {
+          // Recalculate availability with date (don't cache this variant)
+          // Continue to DB query for availability calculation
+        } else {
+          return res.status(200).json({
+            success: true,
+            data: cachedFlight,
+            cached: true
+          });
+        }
+      }
+      console.log(`[Flight Controller] Cache MISS for flight: ${flight_id}`);
+    } catch (redisError) {
+      // If Redis fails, continue to MongoDB query (graceful degradation)
+      console.warn('[Flight Controller] Redis cache miss or error, falling back to MongoDB:', redisError.message);
+    }
+
+    // Cache miss - query MongoDB
     // Try to find by _id (MongoDB ObjectId) first, then by flight_id field
     let flight;
     if (mongoose.Types.ObjectId.isValid(flight_id)) {
@@ -596,11 +710,10 @@ const getFlight = async (req, res) => {
     }
 
     if (!flight) {
-      res.status(404).json({
+      return res.status(404).json({
         success: false,
         error: 'Flight not found'
       });
-      return;
     }
 
     // Calculate actual available seats - use date param if provided, otherwise use flight's departure date
@@ -652,6 +765,16 @@ const getFlight = async (req, res) => {
       // Continue with original total_available_seats if calculation fails
     }
 
+    // Cache the result in Redis with TTL (only if no date param, as date affects availability)
+    if (!date) {
+      try {
+        await redisSet(cacheKey, JSON.stringify(flight.toObject()), REDIS_TTL_DETAILS);
+        console.log(`[Flight Controller] Cached flight details: ${flight_id}`);
+      } catch (redisError) {
+        console.warn('[Flight Controller] Failed to cache flight details:', redisError.message);
+      }
+    }
+
     res.status(200).json({
       success: true,
       data: flight
@@ -668,6 +791,17 @@ const createFlight = async (req, res) => {
   try {
     const flight = new Flight(req.body);
     const savedFlight = await flight.save();
+
+    // Invalidate search cache and flight detail cache
+    try {
+      await redisDelPattern('flights:search:*');
+      if (savedFlight.flight_id) {
+        await redisDel(`flight:${savedFlight.flight_id}`);
+      }
+      console.log('[Flight Controller] Cache invalidated after flight creation');
+    } catch (redisError) {
+      console.warn('[Flight Controller] Failed to invalidate cache on create:', redisError.message);
+    }
 
     res.status(201).json({
       success: true,
@@ -702,11 +836,19 @@ const updateFlight = async (req, res) => {
     );
 
     if (!flight) {
-      res.status(404).json({
+      return res.status(404).json({
         success: false,
         error: 'Flight not found'
       });
-      return;
+    }
+
+    // Invalidate cache on update
+    try {
+      await redisDelPattern('flights:search:*');
+      await redisDel(`flight:${flight_id}`);
+      console.log(`[Flight Controller] Cache invalidated after flight update: ${flight_id}`);
+    } catch (redisError) {
+      console.warn('[Flight Controller] Failed to invalidate cache on update:', redisError.message);
     }
 
     res.status(200).json({
@@ -728,11 +870,19 @@ const deleteFlight = async (req, res) => {
     const flight = await Flight.findOneAndDelete({ flight_id });
 
     if (!flight) {
-      res.status(404).json({
+      return res.status(404).json({
         success: false,
         error: 'Flight not found'
       });
-      return;
+    }
+
+    // Invalidate cache on delete
+    try {
+      await redisDelPattern('flights:search:*');
+      await redisDel(`flight:${flight_id}`);
+      console.log(`[Flight Controller] Cache invalidated after flight delete: ${flight_id}`);
+    } catch (redisError) {
+      console.warn('[Flight Controller] Failed to invalidate cache on delete:', redisError.message);
     }
 
     res.status(200).json({

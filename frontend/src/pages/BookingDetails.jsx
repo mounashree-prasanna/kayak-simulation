@@ -176,15 +176,39 @@ const BookingDetails = () => {
         
         <div className="booking-details-page">
           <div className="details-header">
-            <div>
-              <h1>
-                {(booking.type === 'flight' || booking.booking_type === 'Flight') ? '✈️ Flight Booking' :
-                 (booking.type === 'hotel' || booking.booking_type === 'Hotel') ? '🏨 Hotel Booking' :
-                 '🚗 Car Rental Booking'}
-              </h1>
-              <p className="booking-ref">
-                Booking Reference: {booking.booking_reference || booking.booking_id}
-              </p>
+            <div className="details-title-section">
+              {listing && (() => {
+                const bookingType = booking.type || booking.booking_type
+                let displayImage = null
+                if (bookingType?.toLowerCase() === 'hotel') {
+                  displayImage = listing.image_url || listing.images?.[0]
+                } else if (bookingType?.toLowerCase() === 'car') {
+                  displayImage = listing.image_url || listing.images?.[0]
+                }
+                return displayImage ? <img src={displayImage} alt={listing.hotel_name || listing.vehicle_model || ''} className="details-header-image" /> : null
+              })()}
+              <div>
+                <h1>
+                  {(() => {
+                    const bookingType = booking.type || booking.booking_type
+                    if (listing) {
+                      if (bookingType?.toLowerCase() === 'hotel') {
+                        return listing.hotel_name || listing.name || 'Hotel Booking'
+                      } else if (bookingType?.toLowerCase() === 'car') {
+                        return listing.vehicle_model || listing.car_model || listing.model || 'Car Rental Booking'
+                      } else if (bookingType?.toLowerCase() === 'flight') {
+                        return `${listing.airline || listing.airline_name || 'Flight'} Booking`
+                      }
+                    }
+                    return (bookingType === 'flight' || bookingType === 'Flight') ? '✈️ Flight Booking' :
+                           (bookingType === 'hotel' || bookingType === 'Hotel') ? '🏨 Hotel Booking' :
+                           '🚗 Car Rental Booking'
+                  })()}
+                </h1>
+                <p className="booking-ref">
+                  Booking Reference: {booking.booking_reference || booking.booking_id}
+                </p>
+              </div>
             </div>
             <span className={`status-badge status-${(booking.status || booking.booking_status || '').toLowerCase()}`}>
               {booking.status || booking.booking_status || 'Unknown'}

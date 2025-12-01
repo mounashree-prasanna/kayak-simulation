@@ -79,11 +79,30 @@ carSchema.pre('save', function(next) {
   next();
 });
 
+// Feature flag for indexing
+const ENABLE_INDEXING = process.env.ENABLE_INDEXING !== 'false'; // Default: enabled
+
 // Indexes
 carSchema.index({ car_id: 1 }, { unique: true });
-carSchema.index({ pickup_city: 1, daily_rental_price: 1, car_type: 1 });
-carSchema.index({ availability_status: 1 });
-carSchema.index({ car_rating: 1 });
+
+if (ENABLE_INDEXING) {
+  // Single-field indexes for common queries
+  carSchema.index({ pickup_city: 1 });
+  carSchema.index({ 'location.pickup.city': 1 }); // Support nested location field if used
+  carSchema.index({ price_per_day: 1 }); // Alternative field name
+  carSchema.index({ daily_rental_price: 1 });
+  carSchema.index({ availability_status: 1 });
+  carSchema.index({ car_rating: 1 });
+  
+  // Compound indexes for multi-field searches
+  carSchema.index({ pickup_city: 1, daily_rental_price: 1, car_type: 1 });
+  carSchema.index({ 'location.pickup.city': 1, daily_rental_price: 1 }); // If location structure is used
+} else {
+  // Minimal indexes when indexing is disabled
+  carSchema.index({ pickup_city: 1, daily_rental_price: 1, car_type: 1 });
+  carSchema.index({ availability_status: 1 });
+  carSchema.index({ car_rating: 1 });
+}
 
 module.exports = mongoose.model('Car', carSchema);
 

@@ -1,0 +1,52 @@
+,airline,flight,source_city,departure_time,stops,arrival_time,destination_city,class,duration,days_left,price
+0,American Airlines,AA-100,New York,Morning,zero,Afternoon,Los Angeles,Economy,5.5,1,450
+1,United Airlines,UA-250,New York,Evening,zero,Night,Los Angeles,Economy,5.75,1,480
+2,Delta Airlines,DL-300,New York,Early_Morning,zero,Morning,Los Angeles,Economy,5.5,1,465
+3,Southwest,WN-400,New York,Morning,one,Evening,Los Angeles,Economy,6.5,1,380
+4,American Airlines,AA-101,New York,Afternoon,zero,Evening,Los Angeles,Economy,5.5,1,455
+5,United Airlines,UA-251,New York,Morning,zero,Afternoon,Los Angeles,Economy,5.75,1,475
+6,Delta Airlines,DL-301,New York,Evening,zero,Night,Los Angeles,Economy,5.5,1,470
+7,Southwest,WN-401,New York,Early_Morning,zero,Morning,Los Angeles,Economy,5.5,1,395
+8,American Airlines,AA-102,New York,Night,zero,Early_Morning,Los Angeles,Economy,5.5,1,420
+9,United Airlines,UA-252,New York,Afternoon,zero,Evening,Los Angeles,Economy,5.75,1,490
+10,American Airlines,AA-200,San Francisco,Morning,zero,Afternoon,New York,Economy,5.5,1,520
+11,United Airlines,UA-350,San Francisco,Evening,zero,Night,New York,Economy,5.75,1,540
+12,Delta Airlines,DL-400,San Francisco,Early_Morning,zero,Morning,New York,Economy,5.5,1,510
+13,Southwest,WN-500,San Francisco,Morning,one,Evening,New York,Economy,6.5,1,420
+14,American Airlines,AA-201,San Francisco,Afternoon,zero,Evening,New York,Economy,5.5,1,525
+15,United Airlines,UA-351,San Francisco,Morning,zero,Afternoon,New York,Economy,5.75,1,535
+16,Delta Airlines,DL-401,San Francisco,Evening,zero,Night,New York,Economy,5.5,1,515
+17,Southwest,WN-501,San Francisco,Early_Morning,zero,Morning,New York,Economy,5.5,1,430
+18,American Airlines,AA-202,San Francisco,Night,zero,Early_Morning,New York,Economy,5.5,1,500
+19,United Airlines,UA-352,San Francisco,Afternoon,zero,Evening,New York,Economy,5.75,1,545
+20,American Airlines,AA-300,Chicago,Morning,zero,Afternoon,Los Angeles,Economy,4.0,1,350
+21,United Airlines,UA-450,Chicago,Evening,zero,Night,Los Angeles,Economy,4.25,1,370
+22,Delta Airlines,DL-500,Chicago,Early_Morning,zero,Morning,Los Angeles,Economy,4.0,1,360
+23,Southwest,WN-600,Chicago,Morning,one,Evening,Los Angeles,Economy,5.0,1,290
+24,American Airlines,AA-301,Chicago,Afternoon,zero,Evening,Los Angeles,Economy,4.0,1,355
+25,United Airlines,UA-451,Chicago,Morning,zero,Afternoon,Los Angeles,Economy,4.25,1,365
+26,Delta Airlines,DL-501,Chicago,Evening,zero,Night,Los Angeles,Economy,4.0,1,365
+27,Southwest,WN-601,Chicago,Early_Morning,zero,Morning,Los Angeles,Economy,4.0,1,295
+28,American Airlines,AA-302,Chicago,Night,zero,Early_Morning,Los Angeles,Economy,4.0,1,340
+29,United Airlines,UA-452,Chicago,Afternoon,zero,Evening,Los Angeles,Economy,4.25,1,375
+30,American Airlines,AA-400,Miami,Morning,zero,Afternoon,New York,Economy,3.0,1,280
+31,United Airlines,UA-550,Miami,Evening,zero,Night,New York,Economy,3.25,1,300
+32,Delta Airlines,DL-600,Miami,Early_Morning,zero,Morning,New York,Economy,3.0,1,285
+33,Southwest,WN-700,Miami,Morning,one,Evening,New York,Economy,4.0,1,220
+34,American Airlines,AA-401,Miami,Afternoon,zero,Evening,New York,Economy,3.0,1,275
+35,United Airlines,UA-551,Miami,Morning,zero,Afternoon,New York,Economy,3.25,1,295
+36,Delta Airlines,DL-601,Miami,Evening,zero,Night,New York,Economy,3.0,1,290
+37,Southwest,WN-701,Miami,Early_Morning,zero,Morning,New York,Economy,3.0,1,225
+38,American Airlines,AA-402,Miami,Night,zero,Early_Morning,New York,Economy,3.0,1,270
+39,United Airlines,UA-552,Miami,Afternoon,zero,Evening,New York,Economy,3.25,1,305
+40,American Airlines,AA-500,Los Angeles,Morning,zero,Afternoon,Chicago,Economy,4.0,1,340
+41,United Airlines,UA-650,Los Angeles,Evening,zero,Night,Chicago,Economy,4.25,1,360
+42,Delta Airlines,DL-700,Los Angeles,Early_Morning,zero,Morning,Chicago,Economy,4.0,1,350
+43,Southwest,WN-800,Los Angeles,Morning,one,Evening,Chicago,Economy,5.0,1,280
+44,American Airlines,AA-501,Los Angeles,Afternoon,zero,Evening,Chicago,Economy,4.0,1,345
+45,United Airlines,UA-651,Los Angeles,Morning,zero,Afternoon,Chicago,Economy,4.25,1,355
+46,Delta Airlines,DL-701,Los Angeles,Evening,zero,Night,Chicago,Economy,4.0,1,355
+47,Southwest,WN-801,Los Angeles,Early_Morning,zero,Morning,Chicago,Economy,4.0,1,285
+48,American Airlines,AA-502,Los Angeles,Night,zero,Early_Morning,Chicago,Economy,4.0,1,330
+49,United Airlines,UA-652,Los Angeles,Afternoon,zero,Evening,Chicago,Economy,4.25,1,365
+

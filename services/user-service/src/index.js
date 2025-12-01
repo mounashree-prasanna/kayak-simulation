@@ -3,6 +3,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/database');
 const { initializeKafka } = require('./config/kafka');
+const { connectRedis } = require('./config/redis');
 const userRoutes = require('./routes/userRoutes');
 
 dotenv.config();
@@ -55,6 +56,14 @@ const startServer = async () => {
   try {
     await connectDB();
     await initializeKafka();
+    
+    // Initialize Redis (graceful failure if not available)
+    try {
+      await connectRedis();
+      console.log('[User Service] Redis connected for caching');
+    } catch (redisError) {
+      console.warn('[User Service] Redis connection failed, continuing without cache:', redisError.message);
+    }
     
     app.listen(PORT, () => {
       console.log(`[User Service] Server running on port ${PORT}`);

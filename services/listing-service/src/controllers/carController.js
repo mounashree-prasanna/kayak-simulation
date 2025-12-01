@@ -1,10 +1,36 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 const Car = require('../models/Car');
 const { filterByAvailability } = require('../utils/availabilityChecker');
+const { get: redisGet, set: redisSet, del: redisDel, delPattern: redisDelPattern } = require('../config/redis');
+
+// Redis TTL configuration
+const REDIS_TTL_SEARCH = parseInt(process.env.REDIS_TTL_SEARCH || '600'); // 10 minutes default for search results
+const REDIS_TTL_DETAILS = parseInt(process.env.REDIS_TTL_DETAILS || '1800'); // 30 minutes default for listing details
+
+/**
+ * Generate cache key for search queries
+ */
+const generateSearchCacheKey = (type, params) => {
+  const sortedParams = Object.keys(params)
+    .sort()
+    .map(key => `${key}:${params[key]}`)
+    .join('|');
+  const hash = crypto.createHash('md5').update(sortedParams).digest('hex');
+  return `${type}:search:${hash}`;
+};
 
 const searchCars = async (req, res) => {
   try {
-    const { city, pickupDate, dropoffDate, price_min, price_max, car_type } = req.query;
+    // Feature flag for pagination
+    const ENABLE_PAGINATION = process.env.ENABLE_PAGINATION !== 'false'; // Default: enabled
+    
+    const { city, pickupDate, dropoffDate, price_min, price_max, car_type, page, limit } = req.query;
+    
+    // Pagination parameters
+    const pageNum = ENABLE_PAGINATION ? parseInt(page) || 1 : 1;
+    const pageSize = ENABLE_PAGINATION ? parseInt(limit) || 20 : 100; // Default 20 when enabled, 100 when disabled
+    const skip = (pageNum - 1) * pageSize;
 
     const query = {
       availability_status: 'Available'
@@ -26,18 +52,76 @@ const searchCars = async (req, res) => {
 
     let cars = await Car.find(query)
       .sort({ car_rating: -1, daily_rental_price: 1 })
-      .limit(100);
+      .skip(skip)
+      .limit(pageSize);
 
     // Filter by booking availability if pickup/dropoff dates are provided
     if (pickupDate && dropoffDate) {
       cars = await filterByAvailability(cars, 'Car', new Date(pickupDate), new Date(dropoffDate));
     }
 
-    res.status(200).json({
+    // Build cache key for search results
+    const searchParams = {
+      city: city || '',
+      pickupDate: pickupDate || '',
+      dropoffDate: dropoffDate || '',
+      price_min: price_min || '',
+      price_max: price_max || '',
+      car_type: car_type || '',
+      page: pageNum,
+      limit: pageSize
+    };
+    const cacheKey = generateSearchCacheKey('cars', searchParams);
+
+    // Check Redis cache first (cache-aside pattern)
+    try {
+      const cached = await redisGet(cacheKey);
+      if (cached) {
+        const cachedResult = JSON.parse(cached);
+        console.log(`[Car Controller] Cache HIT for search: ${cacheKey}`);
+        return res.status(200).json({
+          ...cachedResult,
+          cached: true
+        });
+      }
+      console.log(`[Car Controller] Cache MISS for search: ${cacheKey}`);
+    } catch (redisError) {
+      console.warn('[Car Controller] Redis cache miss or error, falling back to MongoDB:', redisError.message);
+    }
+
+    // Get total count for pagination metadata (only if pagination is enabled)
+    let totalCount = cars.length;
+    let totalPages = 1;
+    if (ENABLE_PAGINATION) {
+      totalCount = await Car.countDocuments(query);
+      totalPages = Math.ceil(totalCount / pageSize);
+    }
+
+    const response = {
       success: true,
       count: cars.length,
+      ...(ENABLE_PAGINATION && {
+        pagination: {
+          page: pageNum,
+          limit: pageSize,
+          total: totalCount,
+          totalPages: totalPages,
+          hasNextPage: pageNum < totalPages,
+          hasPrevPage: pageNum > 1
+        }
+      }),
       data: cars
-    });
+    };
+
+    // Cache the result in Redis with TTL
+    try {
+      await redisSet(cacheKey, JSON.stringify(response), REDIS_TTL_SEARCH);
+      console.log(`[Car Controller] Cached search results: ${cacheKey}`);
+    } catch (redisError) {
+      console.warn('[Car Controller] Failed to cache search results:', redisError.message);
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -49,6 +133,25 @@ const searchCars = async (req, res) => {
 const getCar = async (req, res) => {
   try {
     const { car_id } = req.params;
+
+    // Check Redis cache first (cache-aside pattern)
+    const cacheKey = `car:${car_id}`;
+    try {
+      const cached = await redisGet(cacheKey);
+      if (cached) {
+        const cachedCar = JSON.parse(cached);
+        console.log(`[Car Controller] Cache HIT for car: ${car_id}`);
+        return res.status(200).json({
+          success: true,
+          data: cachedCar,
+          cached: true
+        });
+      }
+      console.log(`[Car Controller] Cache MISS for car: ${car_id}`);
+    } catch (redisError) {
+      console.warn('[Car Controller] Redis cache miss or error, falling back to MongoDB:', redisError.message);
+    }
+
     let car;
     
     if (mongoose.Types.ObjectId.isValid(car_id)) {
@@ -60,11 +163,18 @@ const getCar = async (req, res) => {
     }
 
     if (!car) {
-      res.status(404).json({
+      return res.status(404).json({
         success: false,
         error: 'Car not found'
       });
-      return;
+    }
+
+    // Cache the result in Redis with TTL
+    try {
+      await redisSet(cacheKey, JSON.stringify(car.toObject()), REDIS_TTL_DETAILS);
+      console.log(`[Car Controller] Cached car details: ${car_id}`);
+    } catch (redisError) {
+      console.warn('[Car Controller] Failed to cache car details:', redisError.message);
     }
 
     res.status(200).json({
@@ -83,6 +193,17 @@ const createCar = async (req, res) => {
   try {
     const car = new Car(req.body);
     const savedCar = await car.save();
+
+    // Invalidate search cache and car detail cache
+    try {
+      await redisDelPattern('cars:search:*');
+      if (savedCar.car_id) {
+        await redisDel(`car:${savedCar.car_id}`);
+      }
+      console.log('[Car Controller] Cache invalidated after car creation');
+    } catch (redisError) {
+      console.warn('[Car Controller] Failed to invalidate cache on create:', redisError.message);
+    }
 
     res.status(201).json({
       success: true,
@@ -117,11 +238,19 @@ const updateCar = async (req, res) => {
     );
 
     if (!car) {
-      res.status(404).json({
+      return res.status(404).json({
         success: false,
         error: 'Car not found'
       });
-      return;
+    }
+
+    // Invalidate cache on update
+    try {
+      await redisDelPattern('cars:search:*');
+      await redisDel(`car:${car_id}`);
+      console.log(`[Car Controller] Cache invalidated after car update: ${car_id}`);
+    } catch (redisError) {
+      console.warn('[Car Controller] Failed to invalidate cache on update:', redisError.message);
     }
 
     res.status(200).json({
@@ -143,11 +272,19 @@ const deleteCar = async (req, res) => {
     const car = await Car.findOneAndDelete({ car_id });
 
     if (!car) {
-      res.status(404).json({
+      return res.status(404).json({
         success: false,
         error: 'Car not found'
       });
-      return;
+    }
+
+    // Invalidate cache on delete
+    try {
+      await redisDelPattern('cars:search:*');
+      await redisDel(`car:${car_id}`);
+      console.log(`[Car Controller] Cache invalidated after car delete: ${car_id}`);
+    } catch (redisError) {
+      console.warn('[Car Controller] Failed to invalidate cache on delete:', redisError.message);
     }
 
     res.status(200).json({

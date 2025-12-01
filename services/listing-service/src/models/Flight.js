@@ -86,17 +86,45 @@ flightSchema.pre('save', function(next) {
   next();
 });
 
+// Feature flag for indexing
+const ENABLE_INDEXING = process.env.ENABLE_INDEXING !== 'false'; // Default: enabled
+
 // Indexes
 flightSchema.index({ flight_id: 1 }, { unique: true });
-flightSchema.index({ 
-  departure_airport: 1, 
-  arrival_airport: 1, 
-  departure_datetime: 1 
-});
-flightSchema.index({ departure_city: 1 });
-flightSchema.index({ arrival_city: 1 });
-flightSchema.index({ departure_datetime: 1 });
-flightSchema.index({ rating: 1 });
+
+if (ENABLE_INDEXING) {
+  // Single-field indexes for common queries
+  flightSchema.index({ departure_airport: 1 });
+  flightSchema.index({ arrival_airport: 1 });
+  flightSchema.index({ departure_datetime: 1 });
+  flightSchema.index({ ticket_price: 1 });
+  flightSchema.index({ departure_city: 1 });
+  flightSchema.index({ arrival_city: 1 });
+  flightSchema.index({ rating: 1 });
+  
+  // Compound indexes for multi-field searches (most selective first)
+  flightSchema.index({ 
+    departure_airport: 1, 
+    arrival_airport: 1, 
+    departure_datetime: 1 
+  });
+  flightSchema.index({ 
+    departure_airport: 1, 
+    arrival_airport: 1, 
+    ticket_price: 1 
+  });
+} else {
+  // Minimal indexes when indexing is disabled
+  flightSchema.index({ 
+    departure_airport: 1, 
+    arrival_airport: 1, 
+    departure_datetime: 1 
+  });
+  flightSchema.index({ departure_city: 1 });
+  flightSchema.index({ arrival_city: 1 });
+  flightSchema.index({ departure_datetime: 1 });
+  flightSchema.index({ rating: 1 });
+}
 
 module.exports = mongoose.model('Flight', flightSchema);
 

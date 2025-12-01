@@ -35,51 +35,50 @@ const createBooking = async (req, res) => {
       const startDate = new Date(start_date);
       const endDate = new Date(end_date);
       
-      // Check for date conflicts with existing bookings
-      const hasConflict = await BookingRepository.hasDateConflict(
-        booking_type,
-        reference_id,
-        startDate,
-        endDate,
-        null,
-        connection
-      );
-
-      if (hasConflict) {
+      // Check availability based on booking type
+      if (booking_type === 'Car') {
+        // For cars: only one booking per car per date range (no overlapping dates)
+        const hasConflict = await BookingRepository.hasDateConflict(
+          booking_type,
+          reference_id,
+          startDate,
+          endDate,
+          null,
+          connection
+        );
+        
+        if (hasConflict) {
+          throw new Error(`This car is already booked for the selected dates`);
+        }
+      }
+      else if (booking_type === 'Hotel') {
+        // For hotels: check if rooms are available (allow multiple bookings up to room limit)
+        const bookingCount = await BookingRepository.getBookingCount(
+          booking_type,
+          reference_id,
+          startDate,
+          endDate,
+          connection
+        );
+        
+        const totalRooms = listing.number_of_rooms || listing.total_rooms || 0;
+        if (totalRooms > 0 && bookingCount >= totalRooms) {
+          throw new Error(`This hotel is fully booked for the selected dates. All ${totalRooms} room(s) are already reserved.`);
+        }
+      }
+      else if (booking_type === 'Flight') {
         // For flights: check if seats are available
-        if (booking_type === 'Flight') {
-          const bookingCount = await BookingRepository.getBookingCount(
-            booking_type,
-            reference_id,
-            startDate,
-            endDate,
-            connection
-          );
-          
-          // Check if available seats exceed booked seats
-          const availableSeats = listing.total_available_seats || 0;
-          if (bookingCount >= availableSeats) {
-            throw new Error(`Flight ${reference_id} is fully booked for the selected dates`);
-          }
-        }
-        // For hotels: check if rooms are available
-        else if (booking_type === 'Hotel') {
-          const bookingCount = await BookingRepository.getBookingCount(
-            booking_type,
-            reference_id,
-            startDate,
-            endDate,
-            connection
-          );
-          
-          const totalRooms = listing.number_of_rooms || 0;
-          if (bookingCount >= totalRooms) {
-            throw new Error(`Hotel ${reference_id} is fully booked for the selected dates`);
-          }
-        }
-        // For cars: check if car is available (only one booking per car per date range)
-        else if (booking_type === 'Car') {
-          throw new Error(`Car ${reference_id} is already booked for the selected dates`);
+        const bookingCount = await BookingRepository.getBookingCount(
+          booking_type,
+          reference_id,
+          startDate,
+          endDate,
+          connection
+        );
+        
+        const availableSeats = listing.total_available_seats || 0;
+        if (availableSeats > 0 && bookingCount >= availableSeats) {
+          throw new Error(`Flight ${reference_id} is fully booked for the selected dates`);
         }
       }
 

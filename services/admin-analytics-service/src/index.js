@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/database');
+const { connectRedis } = require('./config/redis');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 
@@ -49,6 +50,14 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     await connectDB();
+    
+    // Initialize Redis (graceful failure if not available)
+    try {
+      await connectRedis();
+      console.log('[Admin Analytics Service] Redis connected for caching');
+    } catch (redisError) {
+      console.warn('[Admin Analytics Service] Redis connection failed, continuing without cache:', redisError.message);
+    }
     
     app.listen(PORT, () => {
       console.log(`[Admin Analytics Service] Server running on port ${PORT}`);

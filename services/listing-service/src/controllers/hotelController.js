@@ -1,11 +1,37 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 const Hotel = require('../models/Hotel');
 const { filterByAvailability } = require('../utils/availabilityChecker');
 const AvailabilityService = require('../utils/availabilityService');
+const { get: redisGet, set: redisSet, del: redisDel, delPattern: redisDelPattern } = require('../config/redis');
+
+// Redis TTL configuration
+const REDIS_TTL_SEARCH = parseInt(process.env.REDIS_TTL_SEARCH || '600'); // 10 minutes default for search results
+const REDIS_TTL_DETAILS = parseInt(process.env.REDIS_TTL_DETAILS || '1800'); // 30 minutes default for listing details
+
+/**
+ * Generate cache key for search queries
+ */
+const generateSearchCacheKey = (type, params) => {
+  const sortedParams = Object.keys(params)
+    .sort()
+    .map(key => `${key}:${params[key]}`)
+    .join('|');
+  const hash = crypto.createHash('md5').update(sortedParams).digest('hex');
+  return `${type}:search:${hash}`;
+};
 
 const searchHotels = async (req, res) => {
   try {
-    const { city, checkIn, checkOut, date, price_min, price_max, stars, wifi, breakfast_included, parking, pet_friendly, near_transit } = req.query;
+    // Feature flag for pagination
+    const ENABLE_PAGINATION = process.env.ENABLE_PAGINATION !== 'false'; // Default: enabled
+    
+    const { city, checkIn, checkOut, date, price_min, price_max, stars, wifi, breakfast_included, parking, pet_friendly, near_transit, page, limit } = req.query;
+    
+    // Pagination parameters
+    const pageNum = ENABLE_PAGINATION ? parseInt(page) || 1 : 1;
+    const pageSize = ENABLE_PAGINATION ? parseInt(limit) || 20 : 100; // Default 20 when enabled, 100 when disabled
+    const skip = (pageNum - 1) * pageSize;
 
     const query = {};
 
@@ -32,7 +58,8 @@ const searchHotels = async (req, res) => {
 
     let hotels = await Hotel.find(query)
       .sort({ hotel_rating: -1, price_per_night: 1 })
-      .limit(100);
+      .skip(skip)
+      .limit(pageSize);
 
     // Filter by booking availability if check-in/check-out dates are provided
     const startDate = checkIn || date;
@@ -104,11 +131,75 @@ const searchHotels = async (req, res) => {
       }
     }
 
-    res.status(200).json({
+    // Build cache key for search results
+    const searchParams = {
+      city: city || '',
+      checkIn: checkIn || '',
+      checkOut: checkOut || '',
+      date: date || '',
+      price_min: price_min || '',
+      price_max: price_max || '',
+      stars: stars || '',
+      wifi: wifi || '',
+      breakfast_included: breakfast_included || '',
+      parking: parking || '',
+      pet_friendly: pet_friendly || '',
+      near_transit: near_transit || '',
+      page: pageNum,
+      limit: pageSize
+    };
+    const cacheKey = generateSearchCacheKey('hotels', searchParams);
+
+    // Check Redis cache first (cache-aside pattern)
+    try {
+      const cached = await redisGet(cacheKey);
+      if (cached) {
+        const cachedResult = JSON.parse(cached);
+        console.log(`[Hotel Controller] Cache HIT for search: ${cacheKey}`);
+        return res.status(200).json({
+          ...cachedResult,
+          cached: true
+        });
+      }
+      console.log(`[Hotel Controller] Cache MISS for search: ${cacheKey}`);
+    } catch (redisError) {
+      console.warn('[Hotel Controller] Redis cache miss or error, falling back to MongoDB:', redisError.message);
+    }
+
+    // Get total count for pagination metadata (only if pagination is enabled)
+    let totalCount = hotels.length;
+    let totalPages = 1;
+    if (ENABLE_PAGINATION) {
+      // Count before availability filtering for accurate pagination
+      totalCount = await Hotel.countDocuments(query);
+      totalPages = Math.ceil(totalCount / pageSize);
+    }
+
+    const response = {
       success: true,
       count: hotels.length,
+      ...(ENABLE_PAGINATION && {
+        pagination: {
+          page: pageNum,
+          limit: pageSize,
+          total: totalCount,
+          totalPages: totalPages,
+          hasNextPage: pageNum < totalPages,
+          hasPrevPage: pageNum > 1
+        }
+      }),
       data: hotels
-    });
+    };
+
+    // Cache the result in Redis with TTL
+    try {
+      await redisSet(cacheKey, JSON.stringify(response), REDIS_TTL_SEARCH);
+      console.log(`[Hotel Controller] Cached search results: ${cacheKey}`);
+    } catch (redisError) {
+      console.warn('[Hotel Controller] Failed to cache search results:', redisError.message);
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -121,6 +212,26 @@ const getHotel = async (req, res) => {
   try {
     const { hotel_id } = req.params;
     const { checkIn, checkOut } = req.query; // Optional date parameters to calculate available rooms
+
+    // Check Redis cache first (cache-aside pattern) - only if no date params
+    const cacheKey = `hotel:${hotel_id}`;
+    if (!checkIn && !checkOut) {
+      try {
+        const cached = await redisGet(cacheKey);
+        if (cached) {
+          const cachedHotel = JSON.parse(cached);
+          console.log(`[Hotel Controller] Cache HIT for hotel: ${hotel_id}`);
+          return res.status(200).json({
+            success: true,
+            data: cachedHotel,
+            cached: true
+          });
+        }
+        console.log(`[Hotel Controller] Cache MISS for hotel: ${hotel_id}`);
+      } catch (redisError) {
+        console.warn('[Hotel Controller] Redis cache miss or error, falling back to MongoDB:', redisError.message);
+      }
+    }
     
     let hotel;
     
@@ -133,11 +244,10 @@ const getHotel = async (req, res) => {
     }
 
     if (!hotel) {
-      res.status(404).json({
+      return res.status(404).json({
         success: false,
         error: 'Hotel not found'
       });
-      return;
     }
 
     // Calculate actual available rooms - use check-in/check-out dates if provided
@@ -188,6 +298,16 @@ const getHotel = async (req, res) => {
       // Continue with original number_of_rooms if calculation fails
     }
 
+    // Cache the result in Redis with TTL (only if no date params, as dates affect availability)
+    if (!checkIn && !checkOut) {
+      try {
+        await redisSet(cacheKey, JSON.stringify(hotel.toObject()), REDIS_TTL_DETAILS);
+        console.log(`[Hotel Controller] Cached hotel details: ${hotel_id}`);
+      } catch (redisError) {
+        console.warn('[Hotel Controller] Failed to cache hotel details:', redisError.message);
+      }
+    }
+
     res.status(200).json({
       success: true,
       data: hotel
@@ -204,6 +324,17 @@ const createHotel = async (req, res) => {
   try {
     const hotel = new Hotel(req.body);
     const savedHotel = await hotel.save();
+
+    // Invalidate search cache and hotel detail cache
+    try {
+      await redisDelPattern('hotels:search:*');
+      if (savedHotel.hotel_id) {
+        await redisDel(`hotel:${savedHotel.hotel_id}`);
+      }
+      console.log('[Hotel Controller] Cache invalidated after hotel creation');
+    } catch (redisError) {
+      console.warn('[Hotel Controller] Failed to invalidate cache on create:', redisError.message);
+    }
 
     res.status(201).json({
       success: true,
@@ -238,11 +369,19 @@ const updateHotel = async (req, res) => {
     );
 
     if (!hotel) {
-      res.status(404).json({
+      return res.status(404).json({
         success: false,
         error: 'Hotel not found'
       });
-      return;
+    }
+
+    // Invalidate cache on update
+    try {
+      await redisDelPattern('hotels:search:*');
+      await redisDel(`hotel:${hotel_id}`);
+      console.log(`[Hotel Controller] Cache invalidated after hotel update: ${hotel_id}`);
+    } catch (redisError) {
+      console.warn('[Hotel Controller] Failed to invalidate cache on update:', redisError.message);
     }
 
     res.status(200).json({
@@ -264,11 +403,19 @@ const deleteHotel = async (req, res) => {
     const hotel = await Hotel.findOneAndDelete({ hotel_id });
 
     if (!hotel) {
-      res.status(404).json({
+      return res.status(404).json({
         success: false,
         error: 'Hotel not found'
       });
-      return;
+    }
+
+    // Invalidate cache on delete
+    try {
+      await redisDelPattern('hotels:search:*');
+      await redisDel(`hotel:${hotel_id}`);
+      console.log(`[Hotel Controller] Cache invalidated after hotel delete: ${hotel_id}`);
+    } catch (redisError) {
+      console.warn('[Hotel Controller] Failed to invalidate cache on delete:', redisError.message);
     }
 
     res.status(200).json({

@@ -8,6 +8,11 @@ class FlightBundle(BaseModel):
     price: float
     departure: datetime
     arrival: datetime
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 class HotelBundle(BaseModel):
     hotel_id: str

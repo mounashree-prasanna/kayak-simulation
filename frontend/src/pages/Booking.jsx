@@ -187,26 +187,28 @@ const Booking = () => {
           alert('Please select check-in and check-out dates')
           return
         }
-        bookingData.start_date = new Date(formData.checkIn).toISOString()
-        bookingData.end_date = new Date(formData.checkOut).toISOString()
+        // Fix timezone issue: use local date at midnight to avoid day shift
+        const checkInDate = new Date(formData.checkIn + 'T00:00:00')
+        const checkOutDate = new Date(formData.checkOut + 'T00:00:00')
+        bookingData.start_date = checkInDate.toISOString()
+        bookingData.end_date = checkOutDate.toISOString()
         
         // Calculate total price: price_per_night * number of nights
-        const checkIn = new Date(formData.checkIn)
-        const checkOut = new Date(formData.checkOut)
-        const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24))
+        const nights = Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24))
         bookingData.total_price = (item?.price_per_night || 0) * nights
       } else if (type === 'car') {
         if (!formData.pickupDate || !formData.dropoffDate) {
           alert('Please select pick-up and drop-off dates')
           return
         }
-        bookingData.start_date = new Date(formData.pickupDate).toISOString()
-        bookingData.end_date = new Date(formData.dropoffDate).toISOString()
+        // Fix timezone issue: use local date at midnight to avoid day shift
+        const pickupDate = new Date(formData.pickupDate + 'T00:00:00')
+        const dropoffDate = new Date(formData.dropoffDate + 'T00:00:00')
+        bookingData.start_date = pickupDate.toISOString()
+        bookingData.end_date = dropoffDate.toISOString()
         
         // Calculate total price: price_per_day * number of days
-        const pickup = new Date(formData.pickupDate)
-        const dropoff = new Date(formData.dropoffDate)
-        const days = Math.ceil((dropoff - pickup) / (1000 * 60 * 60 * 24))
+        const days = Math.ceil((dropoffDate - pickupDate) / (1000 * 60 * 60 * 24))
         bookingData.total_price = (item?.daily_rental_price || item?.price_per_day || 0) * days
       }
 
@@ -460,10 +462,19 @@ const Booking = () => {
           <div className="booking-summary">
             <h2>Booking Summary</h2>
             <div className="summary-item">
-              <h3>{type === 'flight' ? item.airline : type === 'hotel' ? item.hotel_name : item.vehicle_model}</h3>
-              <p>{type === 'flight' ? `${item.departure_airport} → ${item.arrival_airport}` : 
-                  type === 'hotel' ? `${item.address?.city}, ${item.address?.state}` :
-                  `${item.location?.city}, ${item.location?.state}`}</p>
+              <h3>
+                {type === 'flight' ? (item?.airline || item?.airline_name || 'Flight') : 
+                 type === 'hotel' ? (item?.hotel_name || item?.name || 'Hotel') : 
+                 (item?.vehicle_model || item?.model || item?.car_model || 'Car')}
+              </h3>
+              <p>
+                {type === 'flight' ? 
+                  `${item?.departure_airport || item?.departure?.airportCode || 'N/A'} → ${item?.arrival_airport || item?.arrival?.airportCode || 'N/A'}` : 
+                  type === 'hotel' ? 
+                    `${item?.address?.city || item?.city || 'N/A'}${item?.address?.state ? `, ${item.address.state}` : ''}${item?.address?.country ? `, ${item.address.country}` : ''}` :
+                    `${item?.location?.city || item?.pickup_city || 'N/A'}${item?.location?.state || item?.pickup_state ? `, ${item.location?.state || item.pickup_state}` : ''}${item?.location?.country ? `, ${item.location.country}` : ''}`
+                }
+              </p>
             </div>
             <div className="summary-price">
               <div className="price-label">Total Price</div>

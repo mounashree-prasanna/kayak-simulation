@@ -32,20 +32,47 @@ const createReview = async (req, res) => {
 
 const getReviews = async (req, res) => {
   try {
-    const { entity_type, entity_id, user_id } = req.query;
+    // Feature flag for pagination
+    const ENABLE_PAGINATION = process.env.ENABLE_PAGINATION !== 'false'; // Default: enabled
+    
+    const { entity_type, entity_id, user_id, page, limit } = req.query;
 
     const query = {};
     if (entity_type) query.entity_type = entity_type;
     if (entity_id) query.entity_id = entity_id;
     if (user_id) query.user_id = user_id;
 
+    // Pagination parameters
+    const pageNum = ENABLE_PAGINATION ? parseInt(page) || 1 : 1;
+    const pageSize = ENABLE_PAGINATION ? parseInt(limit) || 20 : 100; // Default 20 when enabled, 100 when disabled
+    const skip = (pageNum - 1) * pageSize;
+
     const reviews = await Review.find(query)
       .sort({ created_at: -1 })
-      .limit(100);
+      .skip(skip)
+      .limit(pageSize);
+
+    // Get total count for pagination metadata (only if pagination is enabled)
+    let totalCount = reviews.length;
+    let totalPages = 1;
+    if (ENABLE_PAGINATION) {
+      totalCount = await Review.countDocuments(query);
+      totalPages = Math.ceil(totalCount / pageSize);
+    }
 
     res.status(200).json({
       success: true,
       count: reviews.length,
+      ...(ENABLE_PAGINATION && {
+        pagination: {
+          page: pageNum,
+          limit: pageSize,
+          total: totalCount,
+          totalPages: totalPages,
+          hasNextPage: pageNum < totalPages,
+          hasPrevPage: pageNum > 1
+        }
+      }),
       data: reviews
     });
   } catch (error) {
