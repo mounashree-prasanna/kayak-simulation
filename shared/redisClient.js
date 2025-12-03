@@ -14,6 +14,12 @@ let client = null;
  */
 const connectRedis = async () => {
   try {
+    // Skip Redis if disabled
+    if (REDIS_HOST === 'disabled' || !REDIS_HOST || REDIS_HOST.trim() === '') {
+      console.log('[Redis] Redis is disabled, skipping connection');
+      return null;
+    }
+    
     // Check if client exists and is connected
     if (client) {
       try {
@@ -62,14 +68,19 @@ const connectRedis = async () => {
  */
 const get = async (key) => {
   try {
+    if (REDIS_HOST === 'disabled' || !REDIS_HOST || REDIS_HOST.trim() === '') {
+      return null; // Redis disabled, return null (cache miss)
+    }
     if (!client) {
       await connectRedis();
+      if (!client) return null; // Redis connection failed
     } else {
       // Verify connection is alive
       try {
         await client.ping();
       } catch (err) {
         await connectRedis();
+        if (!client) return null; // Redis connection failed
       }
     }
     const value = await client.get(key);
@@ -89,14 +100,19 @@ const get = async (key) => {
  */
 const set = async (key, value, ttlSeconds = null) => {
   try {
+    if (REDIS_HOST === 'disabled' || !REDIS_HOST || REDIS_HOST.trim() === '') {
+      return false; // Redis disabled, skip caching
+    }
     if (!client) {
       await connectRedis();
+      if (!client) return false; // Redis connection failed
     } else {
       // Verify connection is alive
       try {
         await client.ping();
       } catch (err) {
         await connectRedis();
+        if (!client) return false; // Redis connection failed
       }
     }
     

@@ -97,8 +97,13 @@ services:
       NODE_ENV: production
       MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
       MONGODB_DB_NAME: kayak
-      KAFKA_BROKER: kafka:9093
+      KAFKA_BROKER: kafka:9092
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ENABLE_POOLING: "true"
+      ENABLE_INDEXING: "true"
+      ENABLE_PAGINATION: "true"
     ports:
       - "3001:3001"
     depends_on:
@@ -120,12 +125,15 @@ services:
       NODE_ENV: production
       MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
       MONGODB_DB_NAME: kayak
-      KAFKA_BROKER: kafka:9093
+      KAFKA_BROKER: kafka:9092
       BOOKING_SERVICE_URL: http://booking-service:3003
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_TTL_SEARCH: 600
       REDIS_TTL_DETAILS: 1800
+      ENABLE_POOLING: "true"
+      ENABLE_INDEXING: "true"
+      ENABLE_PAGINATION: "true"
     ports:
       - "3002:3002"
     depends_on:
@@ -147,21 +155,22 @@ services:
       NODE_ENV: production
       MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
       MONGODB_DB_NAME: kayak
-      KAFKA_BROKER: kafka:9093
+      KAFKA_BROKER: kafka:9092
       USER_SERVICE_URL: http://user-service:3001
       LISTING_SERVICE_URL: http://listing-service:3002
       MYSQL_HOST: host.docker.internal
       MYSQL_PORT: 3306
       MYSQL_USER: root
-      MYSQL_PASSWORD: Anvitha@2310
+      MYSQL_PASSWORD: rootpass
       MYSQL_DATABASE: kayak_db
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      ENABLE_POOLING: "true"
+      ENABLE_INDEXING: "true"
+      ENABLE_PAGINATION: "true"
     ports:
       - "3003:3003"
     depends_on:
-      kafka:
-        condition: service_healthy
       user-service:
         condition: service_started
     networks:
@@ -178,20 +187,21 @@ services:
       NODE_ENV: production
       MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
       MONGODB_DB_NAME: kayak
-      KAFKA_BROKER: kafka:9093
+      KAFKA_BROKER: kafka:9092
       BOOKING_SERVICE_URL: http://booking-service:3003
       MYSQL_HOST: host.docker.internal
       MYSQL_PORT: 3306
       MYSQL_USER: root
-      MYSQL_PASSWORD: Anvitha@2310
+      MYSQL_PASSWORD: rootpass
       MYSQL_DATABASE: kayak_db
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      ENABLE_POOLING: "true"
+      ENABLE_INDEXING: "true"
+      ENABLE_PAGINATION: "true"
     ports:
       - "3004:3004"
     depends_on:
-      kafka:
-        condition: service_healthy
       booking-service:
         condition: service_started
     networks:
@@ -208,7 +218,10 @@ services:
       NODE_ENV: production
       MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
       MONGODB_DB_NAME: kayak
-      KAFKA_BROKER: kafka:9093
+      KAFKA_BROKER: kafka:9092
+      ENABLE_POOLING: "true"
+      ENABLE_INDEXING: "true"
+      ENABLE_PAGINATION: "true"
     ports:
       - "3005:3005"
     depends_on:
@@ -230,7 +243,10 @@ services:
       NODE_ENV: production
       MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
       MONGODB_DB_NAME: kayak
-      KAFKA_BROKER: kafka:9093
+      KAFKA_BROKER: kafka:9092
+      ENABLE_POOLING: "true"
+      ENABLE_INDEXING: "true"
+      ENABLE_PAGINATION: "true"
       ADMIN_API_KEY: admin-super-secret-key-change-in-production
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -285,25 +301,24 @@ services:
       PORT: 8001
       MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
       MONGODB_DB_NAME: kayak
-      KAFKA_BROKER: kafka:9093
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9093
+      KAFKA_BROKER: kafka:9092
+      ENABLE_POOLING: "true"
+      ENABLE_INDEXING: "true"
+      ENABLE_PAGINATION: "true"
+      KAFKA_BOOTSTRAP_SERVERS: disabled
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_DB: 0
       SQLITE_DATABASE_URL: sqlite:///./data/deals.db
       LISTING_SERVICE_URL: http://listing-service:3002
-    env_file:
-      - ./services/agentic-recommendation-service/.env
+    # env_file:
+    #   - ./services/agentic-recommendation-service/.env
     volumes:
       - agentic-data:/app/data
       - ./services/agentic-recommendation-service/data/csv:/app/data/csv:ro
     ports:
       - "8001:8001"
     depends_on:
-      redis:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
       listing-service:
         condition: service_started
     networks:
