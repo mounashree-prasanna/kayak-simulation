@@ -2,8 +2,14 @@ import axios from 'axios'
 import { store } from '../store/store'
 import { addNotification } from '../store/slices/notificationSlice'
 
+// In development, use relative URL to go through Vite proxy
+// In production, use configured URL or absolute URL
+const baseURL = import.meta.env.VITE_API_URL || (import.meta.env.DEV 
+  ? '/api'
+  : 'http://localhost:3000/api')
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
+  baseURL: baseURL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -48,7 +54,7 @@ api.interceptors.response.use(
         try {
           // Try to refresh the token
           const refreshResponse = await axios.post(
-            `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/users/refresh`,
+            `${baseURL}/users/refresh`,
             { refreshToken: refreshTokenValue },
             { headers: { 'Content-Type': 'application/json' } }
           )

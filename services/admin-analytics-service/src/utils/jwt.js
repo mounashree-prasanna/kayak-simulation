@@ -1,8 +1,9 @@
 const jwt = require('jsonwebtoken');
 
 // JWT secret keys - in production, these should be in environment variables
-const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'your-access-token-secret-key-change-in-production';
-const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'your-refresh-token-secret-key-change-in-production';
+// Must match user-service secrets for token verification
+const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET || 'your-access-token-secret-key-change-in-production';
+const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET || 'your-refresh-token-secret-key-change-in-production';
 
 // Access token expires in 5 minutes
 const ACCESS_TOKEN_EXPIRY = '5m';

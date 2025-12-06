@@ -55,7 +55,7 @@ services:
     networks:
       - kayak-network
     healthcheck:
-      test: nc -z localhost 2181
+      test: ["CMD-SHELL", "nc -z localhost 2181 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -81,7 +81,7 @@ services:
     networks:
       - kayak-network
     healthcheck:
-      test: kafka-topics --bootstrap-server localhost:9092 --list
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -99,6 +99,14 @@ services:
       MONGODB_DB_NAME: kayak
       KAFKA_BROKER: kafka:9093
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      ACCESS_TOKEN_SECRET: your-access-token-secret-key-change-in-production
+      REFRESH_TOKEN_SECRET: your-refresh-token-secret-key-change-in-production
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_TTL: 1800
+      ENABLE_POOLING: "false"
+      ENABLE_INDEXING: "false"
+      ENABLE_PAGINATION: "false"
     ports:
       - "3001:3001"
     depends_on:
@@ -126,6 +134,9 @@ services:
       REDIS_PORT: 6379
       REDIS_TTL_SEARCH: 600
       REDIS_TTL_DETAILS: 1800
+      ENABLE_POOLING: "false"
+      ENABLE_INDEXING: "false"
+      ENABLE_PAGINATION: "false"
     ports:
       - "3002:3002"
     depends_on:
@@ -157,13 +168,18 @@ services:
       MYSQL_DATABASE: kayak_db
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      ENABLE_POOLING: "false"
+      ENABLE_INDEXING: "false"
+      ENABLE_PAGINATION: "false"
     ports:
       - "3003:3003"
     depends_on:
-      kafka:
-        condition: service_healthy
       user-service:
         condition: service_started
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
     networks:
       - kayak-network
 
@@ -187,13 +203,18 @@ services:
       MYSQL_DATABASE: kayak_db
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      ENABLE_POOLING: "false"
+      ENABLE_INDEXING: "false"
+      ENABLE_PAGINATION: "false"
     ports:
       - "3004:3004"
     depends_on:
-      kafka:
-        condition: service_healthy
       booking-service:
         condition: service_started
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
     networks:
       - kayak-network
 
@@ -212,8 +233,6 @@ services:
     ports:
       - "3005:3005"
     depends_on:
-      redis:
-        condition: service_healthy
       kafka:
         condition: service_healthy
     networks:
@@ -232,9 +251,19 @@ services:
       MONGODB_DB_NAME: kayak
       KAFKA_BROKER: kafka:9093
       ADMIN_API_KEY: admin-super-secret-key-change-in-production
+      ACCESS_TOKEN_SECRET: your-access-token-secret-key-change-in-production
+      REFRESH_TOKEN_SECRET: your-refresh-token-secret-key-change-in-production
+      MYSQL_HOST: host.docker.internal
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: Anvitha@2310
+      MYSQL_DATABASE: kayak_db
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_TTL: 1800
+      ENABLE_POOLING: "false"
+      ENABLE_INDEXING: "false"
+      ENABLE_PAGINATION: "false"
     ports:
       - "3006:3006"
     depends_on:
@@ -265,13 +294,20 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - user-service
-      - listing-service
-      - booking-service
-      - billing-service
-      - review-logging-service
-      - admin-analytics-service
-      - kafka
+      user-service:
+        condition: service_started
+      listing-service:
+        condition: service_started
+      booking-service:
+        condition: service_started
+      billing-service:
+        condition: service_started
+      review-logging-service:
+        condition: service_started
+      admin-analytics-service:
+        condition: service_started
+      kafka:
+        condition: service_healthy
     networks:
       - kayak-network
 
@@ -300,12 +336,12 @@ services:
     ports:
       - "8001:8001"
     depends_on:
+      listing-service:
+        condition: service_started
       redis:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      listing-service:
-        condition: service_started
     networks:
       - kayak-network
 

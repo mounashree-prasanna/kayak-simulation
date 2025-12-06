@@ -58,11 +58,17 @@ const startServer = async () => {
     await initializeKafka();
     
     // Initialize Redis (graceful failure if not available)
-    try {
-      await connectRedis();
-      console.log('[User Service] Redis connected for caching');
-    } catch (redisError) {
-      console.warn('[User Service] Redis connection failed, continuing without cache:', redisError.message);
+    // Only try to connect if REDIS_HOST is set and not 'disabled'
+    if (process.env.REDIS_HOST && process.env.REDIS_HOST !== 'disabled') {
+      try {
+        await connectRedis();
+        console.log('[User Service] Redis connected for caching');
+      } catch (redisError) {
+        console.warn('[User Service] Redis connection failed, continuing without cache:', redisError.message);
+        console.warn('[User Service] Service will continue to operate without Redis caching');
+      }
+    } else {
+      console.log('[User Service] Redis disabled (REDIS_HOST=' + (process.env.REDIS_HOST || 'not set') + '), continuing without cache');
     }
     
     app.listen(PORT, () => {

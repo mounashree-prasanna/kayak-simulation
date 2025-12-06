@@ -30,6 +30,8 @@ const connectRedis = async () => {
       socket: {
         host: REDIS_HOST,
         port: REDIS_PORT,
+        // Disable IPv6 to avoid connection issues
+        family: 4, // Force IPv4
       },
     };
 

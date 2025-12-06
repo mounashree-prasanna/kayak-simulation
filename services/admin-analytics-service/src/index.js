@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/database');
+const { connectMySQL } = require('./config/mysql');
 const { connectRedis } = require('./config/redis');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const adminRoutes = require('./routes/adminRoutes');
@@ -23,6 +24,42 @@ app.get('/health', (req, res) => {
     message: 'Admin Analytics Service is running',
     timestamp: new Date().toISOString()
   });
+});
+
+// Debug endpoint to check token (temporary - remove in production)
+app.get('/debug/token', (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      success: false,
+      error: 'No token provided'
+    });
+  }
+  
+  const token = authHeader.split(' ')[1];
+  const { verifyAccessToken } = require('./utils/jwt');
+  
+  try {
+    const decoded = verifyAccessToken(token);
+    res.status(200).json({
+      success: true,
+      decoded: {
+        admin_id: decoded.admin_id,
+        user_id: decoded.user_id,
+        email: decoded.email,
+        role: decoded.role,
+        userRole: decoded.userRole,
+        type: decoded.type,
+        iat: decoded.iat,
+        exp: decoded.exp
+      }
+    });
+  } catch (error) {
+    res.status(401).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 // Routes
@@ -50,6 +87,13 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     await connectDB();
+    
+    // Connect to MySQL (for billing data)
+    try {
+      await connectMySQL();
+    } catch (mysqlError) {
+      console.warn('[Admin Analytics Service] MySQL connection failed, billing analytics may not work:', mysqlError.message);
+    }
     
     // Initialize Redis (graceful failure if not available)
     try {

@@ -14,6 +14,8 @@ const CarSearch = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [sortBy, setSortBy] = useState('price')
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   const cityParam = searchParams.get('city')
   const pickupDateParam = searchParams.get('pickupDate')
@@ -93,6 +95,7 @@ const CarSearch = () => {
       }
       
       setCars(carsData)
+      setCurrentPage(1) // Reset to first page on new search
       
       // Fetch images for each car
       const imagesMap = {}
@@ -224,7 +227,11 @@ const CarSearch = () => {
               <p>No cars found for your search criteria.</p>
             </div>
           ) : (
-            cars.map((car) => {
+            (() => {
+              const startIndex = (currentPage - 1) * itemsPerPage
+              const endIndex = startIndex + itemsPerPage
+              const paginatedCars = cars.slice(startIndex, endIndex)
+              return paginatedCars.map((car) => {
               const carId = car._id || car.car_id
               const imageUrl = carImages[carId]
               return (
@@ -266,9 +273,33 @@ const CarSearch = () => {
                 </div>
               </div>
               )
-            })
+              })
+            })()
           )}
         </div>
+        
+        {cars.length > itemsPerPage && (
+          <div className="pagination">
+            <button 
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="pagination-btn"
+            >
+              Previous
+            </button>
+            <span className="pagination-info">
+              Page {currentPage} of {Math.ceil(cars.length / itemsPerPage)} 
+              ({cars.length} total cars)
+            </span>
+            <button 
+              onClick={() => setCurrentPage(prev => Math.min(Math.ceil(cars.length / itemsPerPage), prev + 1))}
+              disabled={currentPage >= Math.ceil(cars.length / itemsPerPage)}
+              className="pagination-btn"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -14,6 +14,13 @@ const flightSchema = new Schema({
     required: true,
     trim: true
   },
+  provider_id: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    index: true,
+    sparse: true // Allow null values but index when present
+  },
   departure_airport: {
     type: String,
     required: true,
