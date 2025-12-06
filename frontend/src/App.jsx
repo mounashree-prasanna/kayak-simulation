@@ -27,6 +27,9 @@ import AdminListingManagement from './pages/admin/AdminListingManagement'
 import AdminUserManagement from './pages/admin/AdminUserManagement'
 import AdminBilling from './pages/admin/AdminBilling'
 import AdminAnalytics from './pages/admin/AdminAnalytics'
+import AdminAdminManagement from './pages/admin/AdminAdminManagement'
+import ProviderAnalytics from './pages/admin/ProviderAnalytics'
+import Host from './pages/Host'
 import TravelAgent from './components/TravelAgent/TravelAgent'
 
 function App() {
@@ -85,6 +88,9 @@ function App() {
             <Route path="/admin/users" element={<AdminUserManagement />} />
             <Route path="/admin/billing" element={<AdminBilling />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
+            <Route path="/admin/admins" element={<AdminAdminManagement />} />
+            <Route path="/admin/providers/:provider_id" element={<ProviderAnalytics />} />
+            <Route path="/host" element={<Host />} />
             <Route path="/travel-agent" element={<TravelAgent />} />
             <Route path="/concierge" element={<TravelAgent />} />
           </Routes>

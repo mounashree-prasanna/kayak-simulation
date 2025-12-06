@@ -1,9 +1,22 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../services/api'
 
+// Initialize admin from localStorage if available
+const getInitialAdmin = () => {
+  const storedAdmin = localStorage.getItem('admin')
+  if (storedAdmin) {
+    try {
+      return JSON.parse(storedAdmin)
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
 const initialState = {
   user: null,
-  admin: null,
+  admin: getInitialAdmin(),
   accessToken: localStorage.getItem('accessToken') || null,
   refreshToken: localStorage.getItem('refreshToken') || null,
   isAuthenticated: !!(localStorage.getItem('accessToken') && localStorage.getItem('refreshToken')),
@@ -100,15 +113,28 @@ export const fetchUser = createAsyncThunk(
     try {
       const state = getState()
       const storedUser = localStorage.getItem('user')
+      const storedAdmin = localStorage.getItem('admin')
       const accessToken = localStorage.getItem('accessToken')
       const refreshToken = localStorage.getItem('refreshToken')
+      const role = localStorage.getItem('role')
+      const userRole = localStorage.getItem('userRole')
       
-      // If we have tokens and user, restore state
-      if (storedUser && accessToken && refreshToken) {
-        const user = JSON.parse(storedUser)
+      // If we have tokens, restore state
+      if (accessToken && refreshToken) {
         // Set authorization header
         api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`
-        return { user, accessToken, refreshToken }
+        
+        // Restore admin state if role is admin
+        if (role === 'admin' && storedAdmin) {
+          const admin = JSON.parse(storedAdmin)
+          return { admin, accessToken, refreshToken, role: 'admin', userRole }
+        }
+        
+        // Restore user state
+        if (storedUser) {
+          const user = JSON.parse(storedUser)
+          return { user, accessToken, refreshToken, role: role || 'user' }
+        }
       }
       
       // If we have a user_id from old token format, try to fetch user
@@ -258,8 +284,17 @@ const authSlice = createSlice({
       .addCase(fetchUser.fulfilled, (state, action) => {
         state.loading = false
         if (action.payload) {
-          if (typeof action.payload === 'object' && 'user' in action.payload) {
-            state.user = action.payload.user
+          if (typeof action.payload === 'object') {
+            if ('admin' in action.payload) {
+              state.admin = action.payload.admin
+              state.user = null
+              state.role = action.payload.role || 'admin'
+              state.userRole = action.payload.userRole || null
+            } else if ('user' in action.payload) {
+              state.user = action.payload.user
+              state.admin = null
+              state.role = action.payload.role || 'user'
+            }
             state.accessToken = action.payload.accessToken || state.accessToken
             state.refreshToken = action.payload.refreshToken || state.refreshToken
             state.isAuthenticated = !!(action.payload.accessToken && action.payload.refreshToken)

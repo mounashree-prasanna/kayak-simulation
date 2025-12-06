@@ -117,10 +117,40 @@ app.use('/api/logs', createProxyMiddleware({
   pathRewrite: { '^/api/logs': '/logs' }
 }));
 
+app.use('/api/debug', createProxyMiddleware({
+  target: ADMIN_ANALYTICS_SERVICE_URL,
+  changeOrigin: true,
+  pathRewrite: { '^/api/debug': '/debug' },
+  onProxyReq: (proxyReq, req, res) => {
+    if (req.headers.authorization) {
+      proxyReq.setHeader('Authorization', req.headers.authorization);
+    }
+  }
+}));
+
 app.use('/api/analytics', createProxyMiddleware({
   target: ADMIN_ANALYTICS_SERVICE_URL,
   changeOrigin: true,
-  pathRewrite: { '^/api/analytics': '/analytics' }
+  pathRewrite: { '^/api/analytics': '/analytics' },
+  onProxyReq: (proxyReq, req, res) => {
+    // Ensure Authorization header is forwarded
+    if (req.headers.authorization) {
+      proxyReq.setHeader('Authorization', req.headers.authorization);
+    }
+    console.log(`[API Gateway] Proxying ${req.method} ${req.originalUrl || req.url} to ${ADMIN_ANALYTICS_SERVICE_URL}${req.url.replace('/api/analytics', '/analytics')}`);
+  },
+  onProxyRes: (proxyRes, req, res) => {
+    console.log(`[API Gateway] Received ${proxyRes.statusCode} from admin analytics service for ${req.path}`);
+  },
+  onError: (err, req, res) => {
+    console.error(`[API Gateway] Proxy error for ${req.path}:`, err.message, err.code);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to connect to admin analytics service: ' + err.message
+      });
+    }
+  }
 }));
 
 app.use('/api/admins', createProxyMiddleware({
@@ -129,6 +159,10 @@ app.use('/api/admins', createProxyMiddleware({
   pathRewrite: { '^/api/admins': '/admins' },
   logLevel: 'info',
   onProxyReq: (proxyReq, req, res) => {
+    // Ensure Authorization header is forwarded
+    if (req.headers.authorization) {
+      proxyReq.setHeader('Authorization', req.headers.authorization);
+    }
     console.log(`[API Gateway] Proxying ${req.method} ${req.originalUrl || req.url} to ${ADMIN_ANALYTICS_SERVICE_URL}${req.url.replace('/api/admins', '/admins')}`);
   },
   onProxyRes: (proxyRes, req, res) => {

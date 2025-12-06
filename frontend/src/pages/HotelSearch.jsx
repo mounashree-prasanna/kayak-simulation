@@ -14,6 +14,8 @@ const HotelSearch = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [sortBy, setSortBy] = useState('price')
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
   const [filters, setFilters] = useState({
     minRating: '',
     maxPrice: '',
@@ -126,6 +128,7 @@ const HotelSearch = () => {
       }
       
       setHotels(hotelsData)
+      setCurrentPage(1) // Reset to first page on new search
       
       // Fetch images for each hotel
       const imagesMap = {}
@@ -331,7 +334,11 @@ const HotelSearch = () => {
                   <p>No hotels found for your search criteria.</p>
                 </div>
               ) : (
-                hotels.map((hotel) => {
+                (() => {
+                  const startIndex = (currentPage - 1) * itemsPerPage
+                  const endIndex = startIndex + itemsPerPage
+                  const paginatedHotels = hotels.slice(startIndex, endIndex)
+                  return paginatedHotels.map((hotel) => {
                   // Use _id as primary key for lookup (since that's what we're using as the map key)
                   const hotelId = hotel._id || hotel.hotel_id
                   const imageUrl = hotelImages[hotelId]
@@ -377,9 +384,33 @@ const HotelSearch = () => {
                     </div>
                   </div>
                   )
-                })
+                  })
+                })()
               )}
             </div>
+            
+            {hotels.length > itemsPerPage && (
+              <div className="pagination">
+                <button 
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="pagination-btn"
+                >
+                  Previous
+                </button>
+                <span className="pagination-info">
+                  Page {currentPage} of {Math.ceil(hotels.length / itemsPerPage)} 
+                  ({hotels.length} total hotels)
+                </span>
+                <button 
+                  onClick={() => setCurrentPage(prev => Math.min(Math.ceil(hotels.length / itemsPerPage), prev + 1))}
+                  disabled={currentPage >= Math.ceil(hotels.length / itemsPerPage)}
+                  className="pagination-btn"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

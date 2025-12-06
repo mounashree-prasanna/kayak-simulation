@@ -14,6 +14,8 @@ const FlightSearch = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [sortBy, setSortBy] = useState('price')
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   const originParam = searchParams.get('origin')
   const destinationParam = searchParams.get('destination')
@@ -172,6 +174,7 @@ const FlightSearch = () => {
       }
       
       setFlights(flightsData)
+      setCurrentPage(1) // Reset to first page on new search
       
       // Fetch images for each flight
       const imagesMap = {}
@@ -389,7 +392,11 @@ const FlightSearch = () => {
                 <p>Try adjusting your search parameters.</p>
               </div>
             ) : (
-              flights.map((flight) => {
+              (() => {
+                const startIndex = (currentPage - 1) * itemsPerPage
+                const endIndex = startIndex + itemsPerPage
+                const paginatedFlights = flights.slice(startIndex, endIndex)
+                return paginatedFlights.map((flight) => {
                 const flightId = flight._id || flight.flight_id
                 const imageUrl = flightImages[flightId]
                 return (
@@ -449,8 +456,32 @@ const FlightSearch = () => {
                   </div>
                 )
               })
+              })()
             )}
           </div>
+          
+          {flights.length > itemsPerPage && (
+            <div className="pagination">
+              <button 
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="pagination-btn"
+              >
+                Previous
+              </button>
+              <span className="pagination-info">
+                Page {currentPage} of {Math.ceil(flights.length / itemsPerPage)} 
+                ({flights.length} total flights)
+              </span>
+              <button 
+                onClick={() => setCurrentPage(prev => Math.min(Math.ceil(flights.length / itemsPerPage), prev + 1))}
+                disabled={currentPage >= Math.ceil(flights.length / itemsPerPage)}
+                className="pagination-btn"
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

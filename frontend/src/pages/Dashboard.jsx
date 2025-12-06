@@ -201,6 +201,39 @@ const Dashboard = () => {
     setIsEditing(false)
   }
 
+  const handleDeleteAccount = async () => {
+    if (!window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+      return
+    }
+
+    if (!window.confirm('This will permanently delete your account and all associated data. Are you absolutely sure?')) {
+      return
+    }
+
+    try {
+      await api.delete(`/users/${user.user_id}`)
+      
+      dispatch(addNotification({
+        type: 'success',
+        title: 'Account Deleted',
+        message: 'Your account has been deleted successfully.',
+        severity: 'success'
+      }))
+      
+      // Logout and redirect to home
+      const { logoutUser } = await import('../store/slices/authSlice')
+      await dispatch(logoutUser())
+      navigate('/')
+    } catch (error) {
+      dispatch(addNotification({
+        type: 'error',
+        title: 'Delete Failed',
+        message: error.response?.data?.error || 'Failed to delete account. Please try again.',
+        severity: 'error'
+      }))
+    }
+  }
+
   if (loading && !user) {
     return (
       <div className="dashboard">
@@ -232,9 +265,14 @@ const Dashboard = () => {
           <div className="user-info-header">
             <h2>Account Information</h2>
             {!isEditing ? (
-              <button className="btn-edit" onClick={() => setIsEditing(true)}>
-                Edit Profile
-              </button>
+              <div className="user-actions">
+                <button className="btn-edit" onClick={() => setIsEditing(true)}>
+                  Edit Profile
+                </button>
+                <button className="btn-delete" onClick={handleDeleteAccount}>
+                  Delete Account
+                </button>
+              </div>
             ) : (
               <div className="edit-actions">
                 <button className="btn-cancel" onClick={handleCancel} disabled={saving}>

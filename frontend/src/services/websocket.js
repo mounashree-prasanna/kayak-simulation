@@ -23,8 +23,14 @@ class WebSocketService {
       return
     }
 
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8001/events'
-    const httpUrl = wsUrl.replace('ws://', 'http://').replace('wss://', 'https://').replace('/events', '/health')
+    // In development, use relative URL to go through Vite proxy
+    // In production, use direct connection or configured URL
+    const wsUrl = import.meta.env.VITE_WS_URL || (import.meta.env.DEV 
+      ? `ws://${window.location.host}/events`
+      : 'ws://localhost:8001/events')
+    const httpUrl = import.meta.env.DEV
+      ? '/health'
+      : wsUrl.replace('ws://', 'http://').replace('wss://', 'https://').replace('/events', '/health')
     
     // Only attempt connection if WebSocket is supported
     if (typeof WebSocket === 'undefined') {

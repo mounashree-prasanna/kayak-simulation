@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppSelector } from '../../store/hooks'
+import NotificationCenter from '../../components/NotificationCenter/NotificationCenter'
 import './AdminDashboard.css'
 
 const AdminDashboard = () => {
@@ -143,6 +144,7 @@ const AdminDashboard = () => {
             )}
           </div>
         </div>
+        <NotificationCenter />
       </div>
     </div>
   )
