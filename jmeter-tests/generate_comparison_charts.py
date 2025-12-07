@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 JMeter Performance Test Results Comparison Script
-Generates bar charts comparing all 4 test combinations
+Generates bar charts comparing all 4 test combinations with custom color schemes
 """
 
 import pandas as pd
@@ -17,28 +17,40 @@ REPORTS_DIR = Path(__file__).parent / "reports"
 CHARTS_DIR = Path(__file__).parent / "charts"
 CHARTS_DIR.mkdir(exist_ok=True)
 
-# Combination configurations
+# Combination configurations with custom color schemes
 COMBINATIONS = {
     "BASE": {
         "file": "results_base.jtl",
-        "label": "Combination 1: BASE",
-        "color": "#FF6B6B"
+        "label": "B",
+        "short_label": "B",
+        "full_label": "Base"
     },
     "BASE_REDIS": {
         "file": "results_base_redis.jtl",
-        "label": "Combination 2: BASE + REDIS",
-        "color": "#4ECDC4"
+        "label": "B+S",
+        "short_label": "B+S",
+        "full_label": "Base + Redis"
     },
     "BASE_REDIS_KAFKA": {
         "file": "results_base_redis_kafka.jtl",
-        "label": "Combination 3: BASE + REDIS + KAFKA",
-        "color": "#45B7D1"
+        "label": "B+S+K",
+        "short_label": "B+S+K",
+        "full_label": "Base + Redis + Kafka"
     },
     "ALL_OPTIMIZATIONS": {
         "file": "results_all_optimizations.jtl",
-        "label": "Combination 4: ALL OPTIMIZATIONS",
-        "color": "#96CEB4"
+        "label": "B+S+K+Y",
+        "short_label": "B+S+K+Y",
+        "full_label": "All Optimizations"
     }
+}
+
+# Color schemes matching the sample images
+COLOR_SCHEMES = {
+    "pink_magenta": ["#C2185B", "#E91E63", "#F06292", "#F8BBD0"],  # Dark to light pink/magenta
+    "yellow_orange": ["#FF6B00", "#FF8C00", "#FFA500", "#FFD700"],  # Dark to light orange/yellow
+    "purple": ["#6A1B9A", "#8E24AA", "#AB47BC", "#CE93D8"],  # Dark to light purple
+    "blue": ["#1565C0", "#1976D2", "#42A5F5", "#90CAF9"],  # Dark to light blue
 }
 
 def parse_jtl_file(file_path):
@@ -147,6 +159,7 @@ def calculate_metrics(df, combination_name):
     error_404 = len(df[df['responseCode'] == 404])
     error_409 = len(df[df['responseCode'] == 409])
     error_500 = len(df[df['responseCode'] == 500])
+    total_errors = failed
     
     # Throughput calculation (requests per second)
     # Assuming test duration from first to last timestamp
@@ -165,6 +178,7 @@ def calculate_metrics(df, combination_name):
         'total_requests': total_requests,
         'successful': successful,
         'failed': failed,
+        'total_errors': total_errors,
         'success_rate': success_rate,
         'error_rate': error_rate,
         'avg_response_time': avg_response_time,
@@ -182,47 +196,182 @@ def calculate_metrics(df, combination_name):
         'avg_latency': avg_latency
     }
 
-def create_bar_chart(data, metric_name, ylabel, title, filename, colors):
-    """Create a bar chart comparing metrics across combinations"""
+def create_styled_bar_chart(data, metric_name, ylabel, title, filename, color_scheme_name, 
+                            reverse_colors=False, format_func=None):
+    """Create a styled bar chart with gradient colors matching sample images"""
     combinations = [d['combination'] for d in data if d is not None]
     values = [d[metric_name] for d in data if d is not None]
     labels = [COMBINATIONS[c]['label'] for c in combinations]
-    chart_colors = [COMBINATIONS[c]['color'] for c in combinations]
     
     if not values:
         print(f"No data available for {metric_name}")
         return
     
-    fig, ax = plt.subplots(figsize=(12, 6))
-    bars = ax.bar(labels, values, color=chart_colors, alpha=0.8, edgecolor='black', linewidth=1.2)
+    # Get color scheme
+    colors = COLOR_SCHEMES.get(color_scheme_name, COLOR_SCHEMES["pink_magenta"])
+    if reverse_colors:
+        colors = colors[::-1]
+    
+    # Apply colors based on value order (darker for higher/lower depending on metric)
+    # For decreasing metrics (response time, errors), darker = higher value
+    # For increasing metrics (throughput), darker = lower value
+    sorted_indices = sorted(range(len(values)), key=lambda i: values[i], reverse=not reverse_colors)
+    color_map = {}
+    for idx, orig_idx in enumerate(sorted_indices):
+        color_map[orig_idx] = colors[idx]
+    
+    chart_colors = [color_map[i] for i in range(len(values))]
+    
+    # Create figure with white background and light grey grid
+    fig, ax = plt.subplots(figsize=(10, 6))
+    fig.patch.set_facecolor('white')
+    ax.set_facecolor('white')
+    
+    # Create bars with rounded tops
+    bars = ax.bar(labels, values, color=chart_colors, alpha=0.9, 
+                  edgecolor='none', linewidth=0, 
+                  capsize=0, width=0.6)
+    
+    # Make bars rounded at top (simulated with slight transparency and styling)
+    for bar in bars:
+        bar.set_alpha(0.85)
     
     # Add value labels on bars
-    for bar in bars:
+    for i, bar in enumerate(bars):
         height = bar.get_height()
+        if format_func:
+            label_text = format_func(height)
+        else:
+            label_text = f'{height:.0f}' if height >= 1 else f'{height:.2f}'
         ax.text(bar.get_x() + bar.get_width()/2., height,
-                f'{height:.2f}',
-                ha='center', va='bottom', fontsize=10, fontweight='bold')
+                label_text,
+                ha='center', va='bottom', fontsize=11, fontweight='bold',
+                color='#333333')
     
-    ax.set_ylabel(ylabel, fontsize=12, fontweight='bold')
-    ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
-    ax.grid(axis='y', alpha=0.3, linestyle='--')
+    ax.set_ylabel(ylabel, fontsize=13, fontweight='bold', color='#333333')
+    ax.set_title(title, fontsize=15, fontweight='bold', pad=20, color='#333333')
+    
+    # Light grey horizontal grid lines
+    ax.grid(axis='y', alpha=0.3, linestyle='-', linewidth=0.5, color='#CCCCCC')
     ax.set_axisbelow(True)
     
-    # Rotate x-axis labels if needed
-    plt.xticks(rotation=15, ha='right')
+    # Style axes
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_color('#CCCCCC')
+    ax.spines['bottom'].set_color('#CCCCCC')
+    ax.tick_params(colors='#666666', labelsize=11)
+    
+    # Set x-axis labels
+    ax.set_xticks(range(len(labels)))
+    ax.set_xticklabels(labels, fontsize=12, fontweight='bold', color='#333333')
+    
     plt.tight_layout()
     
     # Save chart
     filepath = CHARTS_DIR / filename
-    plt.savefig(filepath, dpi=300, bbox_inches='tight')
+    plt.savefig(filepath, dpi=300, bbox_inches='tight', facecolor='white')
     print(f"Saved: {filepath}")
     plt.close()
+
+def create_important_metrics_charts(data):
+    """Create charts for the most important metrics with sample color schemes"""
+    
+    # 1. Average Response Time (decreasing is better) - Pink/Magenta gradient
+    # Darker for higher values (Base), lighter for lower values (Optimized)
+    create_styled_bar_chart(
+        data, 'avg_response_time', 
+        'Average Response Time (ms)', 
+        'Average Response Time Comparison',
+        '01_avg_response_time.png',
+        'pink_magenta',
+        reverse_colors=False,  # Darker for higher values
+        format_func=lambda x: f'{x:.0f}'
+    )
+    
+    # 2. Total Errors (decreasing is better) - Yellow/Orange gradient
+    # Darker for higher values, lighter for lower values
+    create_styled_bar_chart(
+        data, 'total_errors',
+        'Total Errors',
+        'Total Errors Comparison',
+        '02_total_errors.png',
+        'yellow_orange',
+        reverse_colors=False,  # Darker for higher values
+        format_func=lambda x: f'{x:.0f}'
+    )
+    
+    # 3. Throughput (increasing is better) - Purple gradient
+    # Darker for lower values, lighter for higher values
+    create_styled_bar_chart(
+        data, 'throughput',
+        'Throughput (requests/second)',
+        'Throughput Comparison',
+        '03_throughput.png',
+        'purple',
+        reverse_colors=True,  # Lighter for higher values
+        format_func=lambda x: f'{x:.1f}'
+    )
+    
+    # 4. Success Rate (increasing is better) - Blue gradient
+    create_styled_bar_chart(
+        data, 'success_rate',
+        'Success Rate (%)',
+        'Success Rate Comparison',
+        '04_success_rate.png',
+        'blue',
+        reverse_colors=True,  # Lighter for higher values
+        format_func=lambda x: f'{x:.1f}%'
+    )
+    
+    # 5. Median Response Time - Pink/Magenta gradient
+    create_styled_bar_chart(
+        data, 'median_response_time',
+        'Median Response Time (ms)',
+        'Median Response Time Comparison',
+        '05_median_response_time.png',
+        'pink_magenta',
+        reverse_colors=False,
+        format_func=lambda x: f'{x:.0f}'
+    )
+    
+    # 6. P95 Response Time - Pink/Magenta gradient
+    create_styled_bar_chart(
+        data, 'p95_response_time',
+        '95th Percentile Response Time (ms)',
+        '95th Percentile Response Time Comparison',
+        '06_p95_response_time.png',
+        'pink_magenta',
+        reverse_colors=False,
+        format_func=lambda x: f'{x:.0f}'
+    )
+    
+    # 7. P99 Response Time - Pink/Magenta gradient
+    create_styled_bar_chart(
+        data, 'p99_response_time',
+        '99th Percentile Response Time (ms)',
+        '99th Percentile Response Time Comparison',
+        '07_p99_response_time.png',
+        'pink_magenta',
+        reverse_colors=False,
+        format_func=lambda x: f'{x:.0f}'
+    )
+    
+    # 8. Error Rate - Yellow/Orange gradient
+    create_styled_bar_chart(
+        data, 'error_rate',
+        'Error Rate (%)',
+        'Error Rate Comparison',
+        '08_error_rate.png',
+        'yellow_orange',
+        reverse_colors=False,
+        format_func=lambda x: f'{x:.1f}%'
+    )
 
 def create_error_breakdown_chart(data, filename):
     """Create stacked bar chart for error breakdown"""
     combinations = [d['combination'] for d in data if d is not None]
     labels = [COMBINATIONS[c]['label'] for c in combinations]
-    colors = [COMBINATIONS[c]['color'] for c in combinations]
     
     error_400 = [d['error_400'] for d in data if d is not None]
     error_401 = [d['error_401'] for d in data if d is not None]
@@ -231,6 +380,9 @@ def create_error_breakdown_chart(data, filename):
     error_500 = [d['error_500'] for d in data if d is not None]
     
     fig, ax = plt.subplots(figsize=(12, 6))
+    fig.patch.set_facecolor('white')
+    ax.set_facecolor('white')
+    
     x = np.arange(len(labels))
     width = 0.6
     
@@ -248,14 +400,14 @@ def create_error_breakdown_chart(data, filename):
     ax.set_ylabel('Number of Errors', fontsize=12, fontweight='bold')
     ax.set_title('Error Breakdown by Type Across All Combinations', fontsize=14, fontweight='bold', pad=20)
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=15, ha='right')
+    ax.set_xticklabels(labels, fontsize=12, fontweight='bold')
     ax.legend(loc='upper left')
     ax.grid(axis='y', alpha=0.3, linestyle='--')
     ax.set_axisbelow(True)
     
     plt.tight_layout()
     filepath = CHARTS_DIR / filename
-    plt.savefig(filepath, dpi=300, bbox_inches='tight')
+    plt.savefig(filepath, dpi=300, bbox_inches='tight', facecolor='white')
     print(f"Saved: {filepath}")
     plt.close()
 
@@ -273,6 +425,9 @@ def create_response_time_comparison_chart(data, filename):
     width = 0.2
     
     fig, ax = plt.subplots(figsize=(14, 7))
+    fig.patch.set_facecolor('white')
+    ax.set_facecolor('white')
+    
     ax.bar(x - 1.5*width, avg, width, label='Average', color='#4ECDC4', alpha=0.8)
     ax.bar(x - 0.5*width, median, width, label='Median', color='#45B7D1', alpha=0.8)
     ax.bar(x + 0.5*width, p95, width, label='95th Percentile', color='#96CEB4', alpha=0.8)
@@ -281,14 +436,14 @@ def create_response_time_comparison_chart(data, filename):
     ax.set_ylabel('Response Time (ms)', fontsize=12, fontweight='bold')
     ax.set_title('Response Time Percentiles Comparison', fontsize=14, fontweight='bold', pad=20)
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=15, ha='right')
+    ax.set_xticklabels(labels, fontsize=12, fontweight='bold')
     ax.legend()
     ax.grid(axis='y', alpha=0.3, linestyle='--')
     ax.set_axisbelow(True)
     
     plt.tight_layout()
     filepath = CHARTS_DIR / filename
-    plt.savefig(filepath, dpi=300, bbox_inches='tight')
+    plt.savefig(filepath, dpi=300, bbox_inches='tight', facecolor='white')
     print(f"Saved: {filepath}")
     plt.close()
 
@@ -329,16 +484,17 @@ def main():
     all_data = []
     for combo_key, combo_config in COMBINATIONS.items():
         file_path = RESULTS_DIR / combo_config['file']
-        print(f"Processing {combo_config['label']}...")
+        print(f"Processing {combo_config['full_label']}...")
         df = parse_jtl_file(file_path)
         metrics = calculate_metrics(df, combo_key)
         all_data.append(metrics)
         
         if metrics:
-            print(f"  ✓ Total Requests: {metrics['total_requests']}")
-            print(f"  ✓ Success Rate: {metrics['success_rate']:.2f}%")
-            print(f"  ✓ Avg Response Time: {metrics['avg_response_time']:.2f}ms")
-            print(f"  ✓ Throughput: {metrics['throughput']:.2f} req/s")
+            print(f"  [OK] Total Requests: {metrics['total_requests']}")
+            print(f"  [OK] Success Rate: {metrics['success_rate']:.2f}%")
+            print(f"  [OK] Avg Response Time: {metrics['avg_response_time']:.2f}ms")
+            print(f"  [OK] Throughput: {metrics['throughput']:.2f} req/s")
+            print(f"  [OK] Total Errors: {metrics['total_errors']}")
         print()
     
     # Filter out None values
@@ -348,53 +504,14 @@ def main():
         print("Error: No valid data found. Please check that JTL files exist.")
         return
     
-    print("Generating charts...")
+    print("Generating charts with custom color schemes...")
     print()
     
-    # 1. Success Rate Comparison
-    create_bar_chart(valid_data, 'success_rate', 'Success Rate (%)', 
-                    'Success Rate Comparison Across All Combinations',
-                    '01_success_rate.png', None)
+    # Generate important metrics charts with sample color schemes
+    create_important_metrics_charts(valid_data)
     
-    # 2. Error Rate Comparison
-    create_bar_chart(valid_data, 'error_rate', 'Error Rate (%)',
-                    'Error Rate Comparison Across All Combinations',
-                    '02_error_rate.png', None)
-    
-    # 3. Average Response Time
-    create_bar_chart(valid_data, 'avg_response_time', 'Response Time (ms)',
-                    'Average Response Time Comparison',
-                    '03_avg_response_time.png', None)
-    
-    # 4. Median Response Time
-    create_bar_chart(valid_data, 'median_response_time', 'Response Time (ms)',
-                    'Median Response Time Comparison',
-                    '04_median_response_time.png', None)
-    
-    # 5. P95 Response Time
-    create_bar_chart(valid_data, 'p95_response_time', 'Response Time (ms)',
-                    '95th Percentile Response Time Comparison',
-                    '05_p95_response_time.png', None)
-    
-    # 6. P99 Response Time
-    create_bar_chart(valid_data, 'p99_response_time', 'Response Time (ms)',
-                    '99th Percentile Response Time Comparison',
-                    '06_p99_response_time.png', None)
-    
-    # 7. Throughput Comparison
-    create_bar_chart(valid_data, 'throughput', 'Throughput (requests/second)',
-                    'Throughput Comparison Across All Combinations',
-                    '07_throughput.png', None)
-    
-    # 8. Total Requests
-    create_bar_chart(valid_data, 'total_requests', 'Number of Requests',
-                    'Total Requests Comparison',
-                    '08_total_requests.png', None)
-    
-    # 9. Response Time Percentiles (Grouped)
+    # Additional comparison charts
     create_response_time_comparison_chart(valid_data, '09_response_time_percentiles.png')
-    
-    # 10. Error Breakdown (Stacked)
     create_error_breakdown_chart(valid_data, '10_error_breakdown.png')
     
     # Generate summary report
@@ -408,4 +525,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
