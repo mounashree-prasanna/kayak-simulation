@@ -3,13 +3,14 @@ import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { useAppSelector } from '../store/hooks'
 import api from '../services/api'
+import { logListingClick, logPageClick } from '../services/tracking'
 import './Details.css'
 
 const FlightDetails = () => {
   const { id } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { isAuthenticated } = useAppSelector(state => state.auth)
+  const { isAuthenticated, user } = useAppSelector(state => state.auth)
   const [flight, setFlight] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -19,6 +20,9 @@ const FlightDetails = () => {
 
   useEffect(() => {
     fetchFlight()
+    // Log page visit for analytics
+    const pagePath = `/flights/${id}`
+    logPageClick(pagePath, 'flight-details-page', user?.user_id || user?._id || null)
   }, [id, searchParams])
 
   useEffect(() => {
@@ -34,7 +38,15 @@ const FlightDetails = () => {
       const dateParam = searchParams.get('date')
       const url = dateParam ? `/flights/${id}?date=${dateParam}` : `/flights/${id}`
       const response = await api.get(url)
-      setFlight(response.data.data)
+      const flightData = response.data.data
+      setFlight(flightData)
+      
+      // Log listing click/view for analytics
+      const flightId = flightData.flight_id || flightData._id || id
+      if (flightId) {
+        logListingClick('Flight', flightId, user?.user_id || user?._id || null)
+      }
+      
       setError(null)
     } catch (err) {
       if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {

@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAppSelector } from '../store/hooks'
 import api from '../services/api'
+import { logListingClick, logPageClick } from '../services/tracking'
 import './Details.css'
 
 const CarDetails = () => {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { isAuthenticated } = useAppSelector(state => state.auth)
+  const { isAuthenticated, user } = useAppSelector(state => state.auth)
   const [car, setCar] = useState(null)
   const [carImages, setCarImages] = useState([])
   const [loading, setLoading] = useState(true)
@@ -18,6 +19,9 @@ const CarDetails = () => {
 
   useEffect(() => {
     fetchCar()
+    // Log page visit for analytics
+    const pagePath = `/cars/${id}`
+    logPageClick(pagePath, 'car-details-page', user?.user_id || user?._id || null)
   }, [id])
 
   useEffect(() => {
@@ -32,6 +36,12 @@ const CarDetails = () => {
       const response = await api.get(`/cars/${id}`)
       const carData = response.data.data
       setCar(carData)
+      
+      // Log listing click/view for analytics
+      const carId = carData.car_id || carData._id || id
+      if (carId) {
+        logListingClick('Car', carId, user?.user_id || user?._id || null)
+      }
       
       // Fetch images for the car - try both car_id and _id
       try {

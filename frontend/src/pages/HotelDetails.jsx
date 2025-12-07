@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAppSelector } from '../store/hooks'
 import api from '../services/api'
+import { logListingClick, logPageClick } from '../services/tracking'
 import './Details.css'
 
 const HotelDetails = () => {
   const { id } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { isAuthenticated } = useAppSelector(state => state.auth)
+  const { isAuthenticated, user } = useAppSelector(state => state.auth)
   const [hotel, setHotel] = useState(null)
   const [hotelImages, setHotelImages] = useState([])
   const [loading, setLoading] = useState(true)
@@ -19,6 +20,9 @@ const HotelDetails = () => {
 
   useEffect(() => {
     fetchHotel()
+    // Log page visit for analytics
+    const pagePath = `/hotels/${id}`
+    logPageClick(pagePath, 'hotel-details-page', user?.user_id || user?._id || null)
   }, [id, searchParams])
 
   useEffect(() => {
@@ -40,6 +44,12 @@ const HotelDetails = () => {
       const response = await api.get(url)
       const hotelData = response.data.data
       setHotel(hotelData)
+      
+      // Log listing click/view for analytics
+      const hotelId = hotelData.hotel_id || hotelData._id || id
+      if (hotelId) {
+        logListingClick('Hotel', hotelId, user?.user_id || user?._id || null)
+      }
       
       // Fetch images for the hotel - try both hotel_id and _id
       try {

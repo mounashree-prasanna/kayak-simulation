@@ -36,7 +36,7 @@ const logListingClick = async (req, res) => {
     const { user_id, listing_type, listing_id } = req.body;
 
     const log = new ListingClickLog({
-      user_id,
+      user_id: user_id || undefined,
       listing_type,
       listing_id,
       timestamp: new Date()

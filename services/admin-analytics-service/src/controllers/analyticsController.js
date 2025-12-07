@@ -28,37 +28,63 @@ const getProviderListingIds = async (provider_id, provider_name) => {
         { provider_id },
         { airline_name: provider_name }
       ]
-    }).select('flight_id').lean();
-    listingIds.push(...flights.map(f => f.flight_id));
+    }).select('flight_id _id').lean();
+    flights.forEach(f => {
+      if (f.flight_id) listingIds.push(String(f.flight_id));
+      if (f._id) listingIds.push(String(f._id));
+    });
     
     const hotels = await Hotel.find({ 
       $or: [
         { provider_id },
         { name: { $regex: new RegExp(provider_name, 'i') } }
       ]
-    }).select('hotel_id').lean();
-    listingIds.push(...hotels.map(h => h.hotel_id));
+    }).select('hotel_id _id').lean();
+    hotels.forEach(h => {
+      if (h.hotel_id) listingIds.push(String(h.hotel_id));
+      if (h._id) listingIds.push(String(h._id));
+    });
     
     const cars = await Car.find({ 
       $or: [
         { provider_id },
         { provider_name }
       ]
-    }).select('car_id').lean();
-    listingIds.push(...cars.map(c => c.car_id));
+    }).select('car_id _id').lean();
+    cars.forEach(c => {
+      if (c.car_id) listingIds.push(String(c.car_id));
+      if (c._id) listingIds.push(String(c._id));
+    });
   } else if (provider_name) {
     // Fallback to provider_name matching
-    const flights = await Flight.find({ airline_name: provider_name }).select('flight_id').lean();
-    listingIds.push(...flights.map(f => f.flight_id));
+    const flights = await Flight.find({ airline_name: provider_name }).select('flight_id _id').lean();
+    flights.forEach(f => {
+      if (f.flight_id) listingIds.push(String(f.flight_id));
+      if (f._id) listingIds.push(String(f._id));
+    });
     
-    const cars = await Car.find({ provider_name }).select('car_id').lean();
-    listingIds.push(...cars.map(c => c.car_id));
+    const cars = await Car.find({ provider_name }).select('car_id _id').lean();
+    cars.forEach(c => {
+      if (c.car_id) listingIds.push(String(c.car_id));
+      if (c._id) listingIds.push(String(c._id));
+    });
     
-    // For hotels, we'll need provider_name field or match by name pattern
-    // For now, we'll skip hotels if no provider_id
+    // For hotels, match by name pattern
+    const hotels = await Hotel.find({ 
+      name: { $regex: new RegExp(provider_name, 'i') } 
+    }).select('hotel_id _id').lean();
+    hotels.forEach(h => {
+      if (h.hotel_id) listingIds.push(String(h.hotel_id));
+      if (h._id) listingIds.push(String(h._id));
+    });
   }
   
-  return listingIds;
+  // Remove duplicates and null/undefined values, convert all to strings
+  const uniqueListingIds = [...new Set(listingIds.filter(id => id != null).map(id => String(id)))];
+  
+  console.log(`[Admin Analytics] getProviderListingIds found ${uniqueListingIds.length} unique listing IDs for provider ${provider_id || provider_name}`);
+  
+  return uniqueListingIds;
 };
 
 const getTopProperties = async (req, res) => {
@@ -781,10 +807,70 @@ const getProviderClicksPerPage = async (req, res) => {
       }
     }
 
-    // Get all listing IDs for this provider
+    // Get all listing IDs for this provider and determine listing types
     const listingIds = await getProviderListingIds(provider_id, provider_name);
     
-    if (listingIds.length === 0) {
+    // Determine what types of listings this provider has
+    let hasHotels = false;
+    let hasFlights = false;
+    let hasCars = false;
+    
+    if (provider_id) {
+      const hotelCount = await Hotel.countDocuments({ 
+        $or: [
+          { provider_id },
+          { name: { $regex: new RegExp(provider_name || '', 'i') } }
+        ]
+      });
+      const flightCount = await Flight.countDocuments({ 
+        $or: [
+          { provider_id },
+          { airline_name: provider_name }
+        ]
+      });
+      const carCount = await Car.countDocuments({ 
+        $or: [
+          { provider_id },
+          { provider_name }
+        ]
+      });
+      hasHotels = hotelCount > 0;
+      hasFlights = flightCount > 0;
+      hasCars = carCount > 0;
+    } else if (provider_name) {
+      const hotelCount = await Hotel.countDocuments({ 
+        name: { $regex: new RegExp(provider_name, 'i') } 
+      });
+      const flightCount = await Flight.countDocuments({ airline_name: provider_name });
+      const carCount = await Car.countDocuments({ provider_name });
+      hasHotels = hotelCount > 0;
+      hasFlights = flightCount > 0;
+      hasCars = carCount > 0;
+    }
+    
+    // Build match conditions for pages
+    // Include: 1) Detail pages with listing IDs, 2) Search pages for relevant listing types
+    const matchConditions = [];
+    
+    // Match detail pages that contain listing IDs (e.g., /hotels/123, /flights/456)
+    if (listingIds.length > 0) {
+      const escapedListingIds = listingIds.map(id => id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      const listingIdPattern = new RegExp(`(${escapedListingIds.join('|')})`, 'i');
+      matchConditions.push({ page: { $regex: listingIdPattern } });
+    }
+    
+    // Match search pages based on provider's listing types
+    if (hasHotels) {
+      matchConditions.push({ page: { $regex: /^\/hotels(\/|$|\?|&)/i } });
+    }
+    if (hasFlights) {
+      matchConditions.push({ page: { $regex: /^\/flights(\/|$|\?|&)/i } });
+    }
+    if (hasCars) {
+      matchConditions.push({ page: { $regex: /^\/cars(\/|$|\?|&)/i } });
+    }
+    
+    if (matchConditions.length === 0) {
       return res.status(200).json({
         success: true,
         provider_id: provider_id || null,
@@ -794,15 +880,16 @@ const getProviderClicksPerPage = async (req, res) => {
         message: 'No listings found for this provider'
       });
     }
-
-    // Get page clicks for pages that contain these listings
+    
+    console.log(`[Admin Analytics] getProviderClicksPerPage - Provider: ${provider_name || provider_id}`);
+    console.log(`[Admin Analytics] - Listing types: Hotels=${hasHotels}, Flights=${hasFlights}, Cars=${hasCars}`);
+    console.log(`[Admin Analytics] - Matching ${listingIds.length} listing IDs + search pages`);
+    console.log(`[Admin Analytics] - Sample listing IDs: ${listingIds.slice(0, 5).join(', ')}`);
+    
     const result = await PageClickLog.aggregate([
       {
         $match: {
-          $or: [
-            { page: { $regex: new RegExp(listingIds.join('|'), 'i') } },
-            { listing_id: { $in: listingIds } }
-          ]
+          $or: matchConditions
         }
       },
       {
@@ -840,8 +927,11 @@ const getProviderClicksPerPage = async (req, res) => {
 
 const getProviderListingClicks = async (req, res) => {
   try {
+    console.log(`[Admin Analytics] getProviderListingClicks - FUNCTION CALLED`);
     const { provider_id } = req.params;
     const { provider_name } = req.query;
+    
+    console.log(`[Admin Analytics] getProviderListingClicks - Received params: provider_id="${provider_id}", provider_name="${provider_name}"`);
     
     if (!provider_id && !provider_name) {
       return res.status(400).json({
@@ -852,17 +942,65 @@ const getProviderListingClicks = async (req, res) => {
 
     // Get provider info if provider_id is provided
     let providerInfo = null;
+    let actualProviderId = provider_id;
+    
+    // Try to find provider - first by provider_id, then by provider_name
     if (provider_id) {
       providerInfo = await Provider.findOne({ provider_id }).lean();
       if (providerInfo) {
-        provider_name = providerInfo.provider_name;
+        provider_name = providerInfo.provider_name || provider_name;
+        actualProviderId = providerInfo.provider_id;
+      } else if (provider_name) {
+        // If provider_id lookup failed, try by provider_name (case-insensitive)
+        providerInfo = await Provider.findOne({ 
+          provider_name: { $regex: new RegExp(`^${provider_name}$`, 'i') } 
+        }).lean();
+        if (providerInfo && providerInfo.provider_id) {
+          actualProviderId = providerInfo.provider_id;
+        }
+      }
+    } else if (provider_name) {
+      // Try to find provider by name (case-insensitive)
+      providerInfo = await Provider.findOne({ 
+        provider_name: { $regex: new RegExp(`^${provider_name}$`, 'i') } 
+      }).lean();
+      if (providerInfo && providerInfo.provider_id) {
+        actualProviderId = providerInfo.provider_id;
       }
     }
 
-    // Get all listing IDs for this provider
-    const listingIds = await getProviderListingIds(provider_id, provider_name);
+    // Build match query - try provider_id first (more direct), then fall back to listing IDs
+    const matchQuery = {};
     
-    if (listingIds.length === 0) {
+    // First, try to match by provider_id if available in click logs
+    // Click logs may have provider_id field even if not in schema (MongoDB allows extra fields)
+    // Provider IDs in click logs are typically uppercase (e.g., "MARRIOTT", "HERTZ")
+    if (actualProviderId) {
+      // Try exact match first
+      matchQuery.provider_id = { $regex: new RegExp(`^${actualProviderId}$`, 'i') };
+      console.log(`[Admin Analytics] Matching by provider_id (case-insensitive): ${actualProviderId}`);
+    }
+    
+    // Also get listing IDs as fallback (in case some click logs don't have provider_id)
+    const listingIds = await getProviderListingIds(actualProviderId || provider_id, provider_name);
+    console.log(`[Admin Analytics] getProviderListingClicks - Provider lookup result:`);
+    console.log(`  - provider_id param: ${provider_id}`);
+    console.log(`  - provider_name param: ${provider_name}`);
+    console.log(`  - actualProviderId found: ${actualProviderId || 'N/A'}`);
+    console.log(`  - Found ${listingIds.length} listing IDs:`, listingIds.slice(0, 10));
+    
+    // Build $or query to match by either provider_id OR listing_id
+    const orConditions = [];
+    
+    if (matchQuery.provider_id) {
+      orConditions.push({ provider_id: matchQuery.provider_id });
+    }
+    
+    if (listingIds.length > 0) {
+      orConditions.push({ listing_id: { $in: listingIds } });
+    }
+    
+    if (orConditions.length === 0) {
       return res.status(200).json({
         success: true,
         provider_id: provider_id || null,
@@ -872,17 +1010,53 @@ const getProviderListingClicks = async (req, res) => {
         message: 'No listings found for this provider'
       });
     }
+    
+    // Use $or to match by either provider_id or listing_id
+    matchQuery.$or = orConditions;
+    delete matchQuery.provider_id; // Remove the direct provider_id since we're using $or
+    
+    console.log(`[Admin Analytics] getProviderListingClicks - Using $or query with ${orConditions.length} conditions`);
+    console.log(`[Admin Analytics] Match query conditions:`, JSON.stringify(orConditions, null, 2));
 
+    // Check what click logs exist in database
+    const allClicks = await ListingClickLog.find({}).limit(10).lean();
+    console.log(`[Admin Analytics] Sample click logs in DB (${allClicks.length} total samples):`, allClicks.map(c => ({ 
+      listing_type: c.listing_type, 
+      listing_id: c.listing_id,
+      provider_id: c.provider_id || 'N/A',
+      timestamp: c.timestamp 
+    })));
+    
+    // Check if any click logs match our listing IDs
+    if (listingIds.length > 0) {
+      const matchingClicks = await ListingClickLog.find({ listing_id: { $in: listingIds } }).limit(5).lean();
+      console.log(`[Admin Analytics] Click logs matching listing IDs (${matchingClicks.length} found):`, matchingClicks.map(c => ({
+        listing_id: c.listing_id,
+        listing_type: c.listing_type,
+        provider_id: c.provider_id || 'N/A'
+      })));
+    }
+
+    // Normalize listing_type to handle case-insensitive matching
+    // Click logs may have "hotel" but we want "Hotel"
     const result = await ListingClickLog.aggregate([
       {
-        $match: {
-          listing_id: { $in: listingIds }
+        $match: matchQuery
+      },
+      {
+        $addFields: {
+          normalized_type: {
+            $concat: [
+              { $toUpper: { $substr: ['$listing_type', 0, 1] } },
+              { $toLower: { $substr: ['$listing_type', 1, -1] } }
+            ]
+          }
         }
       },
       {
         $group: {
           _id: {
-            type: '$listing_type',
+            type: '$normalized_type',
             id: '$listing_id'
           },
           total_clicks: { $sum: 1 },
@@ -901,6 +1075,14 @@ const getProviderListingClicks = async (req, res) => {
       { $sort: { total_clicks: -1 } }
     ]);
 
+    console.log(`[Admin Analytics] getProviderListingClicks - Final result: ${result.length} records`);
+    if (result.length > 0) {
+      console.log(`[Admin Analytics] Sample results:`, result.slice(0, 3));
+    } else {
+      console.log(`[Admin Analytics] WARNING: No results found for provider "${provider_name || provider_id}"`);
+      console.log(`[Admin Analytics] Match query used:`, JSON.stringify(matchQuery, null, 2));
+    }
+
     res.status(200).json({
       success: true,
       provider_id: provider_id || null,
@@ -909,6 +1091,7 @@ const getProviderListingClicks = async (req, res) => {
       data: result
     });
   } catch (error) {
+    console.error(`[Admin Analytics] getProviderListingClicks - ERROR:`, error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to fetch provider listing clicks'

@@ -1,12 +1,20 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAppSelector } from '../store/hooks'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
+import { logPageClick } from '../services/tracking'
 import './Home.css'
 
 const Home = () => {
   const navigate = useNavigate()
+  const { user } = useAppSelector(state => state.auth)
   const [activeTab, setActiveTab] = useState('flights')
+  
+  // Log page visit for analytics
+  useEffect(() => {
+    logPageClick('/', 'home-page', user?.user_id || user?._id || null)
+  }, [user])
   
   // Flight search state
   const [flightOrigin, setFlightOrigin] = useState('')

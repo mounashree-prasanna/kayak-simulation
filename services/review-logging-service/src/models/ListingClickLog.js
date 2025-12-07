@@ -4,8 +4,9 @@ const Schema = mongoose.Schema;
 const listingClickLogSchema = new Schema({
   user_id: {
     type: String,
-    required: true,
-    trim: true
+    required: false,
+    trim: true,
+    default: null
   },
   listing_type: {
     type: String,

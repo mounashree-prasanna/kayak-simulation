@@ -3,7 +3,9 @@ import { useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
+import { useAppSelector } from '../store/hooks'
 import api from '../services/api'
+import { logPageClick } from '../services/tracking'
 import './SearchResults.css'
 
 const FlightSearch = () => {
@@ -52,7 +54,13 @@ const FlightSearch = () => {
   const passengers = passengersParam
   const flightClass = flightClassParam
 
+  const { user } = useAppSelector(state => state.auth)
+
   useEffect(() => {
+    // Log page visit for analytics
+    const pagePath = '/flights'
+    logPageClick(pagePath, 'flight-search-page', user?.user_id || user?._id || null)
+    
     // Only fetch flights if we have required search parameters
     if (originParam && destinationParam) {
       fetchFlights()
