@@ -1,0 +1,150 @@
+erDiagram
+    USERS {
+        ObjectId _id PK
+        string user_id UK "SSN format: ###-##-####"
+        string first_name
+        string last_name
+        object address "Embedded: street, city, state, zip"
+        string phone_number
+        string email UK "lowercase"
+        string password "hashed"
+        string profile_image_url
+        object payment_details "Embedded: card_token, masked_number, card_type, expiry_month, expiry_year"
+        string refresh_token
+        date created_at
+        date updated_at
+    }
+    
+    ADMINS {
+        ObjectId _id PK
+        string admin_id UK "uppercase"
+        string first_name
+        string last_name
+        object address "Embedded: street, city, state, zip"
+        string phone_number
+        string email UK "lowercase"
+        string password "hashed"
+        enum role "Super Admin, Listing Admin, User Admin, Billing Admin, Analytics Admin"
+        array reports_and_analytics_managed
+        string refresh_token
+        date created_at
+        date updated_at
+    }
+    
+    FLIGHTS {
+        ObjectId _id PK
+        string flight_id UK "uppercase"
+        string airline_name
+        string departure_airport "uppercase"
+        string departure_city
+        string arrival_airport "uppercase"
+        string arrival_city
+        date departure_datetime
+        date arrival_datetime
+        number duration_minutes "min: 0"
+        enum flight_class "Economy, Business, First"
+        number ticket_price "min: 0"
+        number total_available_seats "min: 0"
+        number rating "min: 0, max: 5"
+        string provider_id
+        date created_at
+        date updated_at
+    }
+    
+    HOTELS {
+        ObjectId _id PK
+        string hotel_id UK
+        string name
+        object address "Embedded: street, city, state, zip"
+        number star_rating "min: 1, max: 5"
+        number number_of_rooms "min: 1"
+        string default_room_type
+        number price_per_night "min: 0"
+        object amenities "Embedded: wifi, breakfast_included, parking, pet_friendly, near_transit, pool, gym"
+        number hotel_rating "min: 0, max: 5"
+        string provider_id
+        date created_at
+        date updated_at
+    }
+    
+    CARS {
+        ObjectId _id PK
+        string car_id UK
+        string car_type
+        string provider_name
+        string model
+        number year "min: 1900"
+        string transmission_type
+        number number_of_seats "min: 1"
+        number daily_rental_price "min: 0"
+        number car_rating "min: 0, max: 5"
+        enum availability_status "Available, Booked, Maintenance, Unavailable"
+        string pickup_city
+        object location "Embedded: pickup/dropoff with address, city, country, latitude, longitude"
+        string provider_id
+        date created_at
+        date updated_at
+    }
+    
+    REVIEWS {
+        ObjectId _id PK
+        string user_id
+        ObjectId user_ref FK
+        enum entity_type "Flight, Hotel, Car"
+        string entity_id
+        number rating "min: 1, max: 5"
+        string title "maxlength: 200"
+        string comment "maxlength: 2000"
+        date created_at
+    }
+    
+    AVAILABILITY_BLOCKS {
+        ObjectId _id PK
+        enum listing_type "Flight, Hotel, Car"
+        string reference_id
+        string booking_id UK
+        date start_date
+        date end_date
+        enum booking_status "Pending, Confirmed, Cancelled"
+        date created_at
+        date updated_at
+    }
+    
+    IMAGES {
+        ObjectId _id PK
+        enum entity_type "Flight, Hotel, Room, Car"
+        string entity_id
+        string image_url
+        object metadata
+        date created_at
+    }
+    
+    DEALS {
+        ObjectId _id PK
+        enum listing_type "Flight, Hotel"
+        string listing_id
+        object date_range "Embedded: start, end"
+        number base_price
+        number current_price
+        number avg_30d_price
+        number deal_score "min: 0, max: 100"
+        boolean limited_availability
+        object tags "Embedded: refundability, pet_friendly, etc"
+        number seats_or_rooms_left
+        date created_at
+        date updated_at
+    }
+    
+    USERS ||--o{ REVIEWS : "writes"
+    FLIGHTS ||--o{ REVIEWS : "receives"
+    HOTELS ||--o{ REVIEWS : "receives"
+    CARS ||--o{ REVIEWS : "receives"
+    FLIGHTS ||--o{ AVAILABILITY_BLOCKS : "has"
+    HOTELS ||--o{ AVAILABILITY_BLOCKS : "has"
+    CARS ||--o{ AVAILABILITY_BLOCKS : "has"
+    FLIGHTS ||--o{ IMAGES : "has"
+    HOTELS ||--o{ IMAGES : "has"
+    CARS ||--o{ IMAGES : "has"
+    FLIGHTS ||--o{ DEALS : "has"
+    HOTELS ||--o{ DEALS : "has"
+

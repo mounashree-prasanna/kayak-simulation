@@ -1,0 +1,37 @@
+erDiagram
+    BOOKINGS {
+        int id PK "AUTO_INCREMENT"
+        varchar booking_id UK "NOT NULL"
+        varchar user_id "NOT NULL"
+        varchar user_ref
+        enum booking_type "Flight, Hotel, Car"
+        varchar reference_id "NOT NULL"
+        varchar reference_ref
+        datetime start_date "NOT NULL"
+        datetime end_date "NOT NULL"
+        enum booking_status "Pending, Confirmed, Cancelled, PaymentFailed"
+        decimal total_price "NOT NULL, CHECK >= 0"
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    BILLINGS {
+        int id PK "AUTO_INCREMENT"
+        varchar billing_id UK "NOT NULL"
+        varchar user_id "NOT NULL"
+        varchar user_ref
+        varchar booking_type "NOT NULL"
+        varchar booking_id FK "NOT NULL"
+        varchar booking_ref
+        datetime transaction_date "NOT NULL"
+        decimal total_amount_paid "NOT NULL, CHECK >= 0"
+        varchar payment_method "NOT NULL"
+        enum transaction_status "Success, Failed, Refunded, Pending"
+        varchar invoice_number UK "NOT NULL"
+        json invoice_details
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    BOOKINGS ||--o{ BILLINGS : "has"
+
