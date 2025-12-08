@@ -134,6 +134,7 @@ services:
       REDIS_TTL_DETAILS: 1800
       MONGODB_POOL_SIZE: "100"
       MONGODB_MIN_POOL_SIZE: "20"
+      SKIP_REDIS_IN_PERF: "true"
       ENABLE_POOLING: "true"
       ENABLE_INDEXING: "true"
       ENABLE_PAGINATION: "true"

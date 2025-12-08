@@ -148,29 +148,35 @@ const searchHotels = async (req, res) => {
       page: pageNum,
       limit: pageSize
     };
+    // For performance testing: Skip Redis entirely if enabled to avoid overhead
+    const PERFORMANCE_TESTING = process.env.PERFORMANCE_TESTING === 'true' || process.env.NODE_ENV === 'test';
+    const SKIP_REDIS_IN_PERF = process.env.SKIP_REDIS_IN_PERF === 'true';
+    
     const cacheKey = generateSearchCacheKey('hotels', searchParams);
 
-    // Check Redis cache first (cache-aside pattern)
-    try {
-      const cached = await redisGet(cacheKey);
-      if (cached) {
-        const cachedResult = JSON.parse(cached);
-        console.log(`[Hotel Controller] Cache HIT for search: ${cacheKey}`);
-        return res.status(200).json({
-          ...cachedResult,
-          cached: true
-        });
+    // Check Redis cache first (cache-aside pattern) - Skip in performance mode if configured
+    if (!(PERFORMANCE_TESTING && SKIP_REDIS_IN_PERF)) {
+      try {
+        const cached = await redisGet(cacheKey);
+        if (cached) {
+          const cachedResult = JSON.parse(cached);
+          console.log(`[Hotel Controller] Cache HIT for search: ${cacheKey}`);
+          return res.status(200).json({
+            ...cachedResult,
+            cached: true
+          });
+        }
+        console.log(`[Hotel Controller] Cache MISS for search: ${cacheKey}`);
+      } catch (redisError) {
+        console.warn('[Hotel Controller] Redis cache miss or error, falling back to MongoDB:', redisError.message);
       }
-      console.log(`[Hotel Controller] Cache MISS for search: ${cacheKey}`);
-    } catch (redisError) {
-      console.warn('[Hotel Controller] Redis cache miss or error, falling back to MongoDB:', redisError.message);
     }
 
     // Get total count for pagination metadata (only if pagination is enabled)
     let totalCount = hotels.length;
     let totalPages = 1;
     // For performance testing: skip expensive countDocuments() query
-    const PERFORMANCE_TESTING = process.env.PERFORMANCE_TESTING === 'true' || process.env.NODE_ENV === 'test';
+    // PERFORMANCE_TESTING already declared above
     if (ENABLE_PAGINATION && !PERFORMANCE_TESTING) {
       // Count before availability filtering for accurate pagination
       totalCount = await Hotel.countDocuments(query);
@@ -197,12 +203,14 @@ const searchHotels = async (req, res) => {
       data: hotels
     };
 
-    // Cache the result in Redis with TTL
-    try {
-      await redisSet(cacheKey, JSON.stringify(response), REDIS_TTL_SEARCH);
-      console.log(`[Hotel Controller] Cached search results: ${cacheKey}`);
-    } catch (redisError) {
-      console.warn('[Hotel Controller] Failed to cache search results:', redisError.message);
+    // Cache the result in Redis with TTL - Skip in performance mode if configured
+    if (!(PERFORMANCE_TESTING && SKIP_REDIS_IN_PERF)) {
+      try {
+        await redisSet(cacheKey, JSON.stringify(response), REDIS_TTL_SEARCH);
+        console.log(`[Hotel Controller] Cached search results: ${cacheKey}`);
+      } catch (redisError) {
+        console.warn('[Hotel Controller] Failed to cache search results:', redisError.message);
+      }
     }
 
     res.status(200).json(response);

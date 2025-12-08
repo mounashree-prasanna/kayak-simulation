@@ -639,30 +639,36 @@ const searchFlights = async (req, res) => {
       page: pageNum,
       limit: pageSize
     };
+    // For performance testing: Skip Redis entirely if enabled to avoid overhead
+    const PERFORMANCE_TESTING = process.env.PERFORMANCE_TESTING === 'true' || process.env.NODE_ENV === 'test';
+    const SKIP_REDIS_IN_PERF = process.env.SKIP_REDIS_IN_PERF === 'true';
+    
     const cacheKey = generateSearchCacheKey('flights', searchParams);
 
-    // Check Redis cache first (cache-aside pattern)
-    try {
-      const cached = await redisGet(cacheKey);
-      if (cached) {
-        const cachedResult = JSON.parse(cached);
-        console.log(`[Flight Controller] Cache HIT for search: ${cacheKey}`);
-        return res.status(200).json({
-          ...cachedResult,
-          cached: true
-        });
+    // Check Redis cache first (cache-aside pattern) - Skip in performance mode if configured
+    if (!(PERFORMANCE_TESTING && SKIP_REDIS_IN_PERF)) {
+      try {
+        const cached = await redisGet(cacheKey);
+        if (cached) {
+          const cachedResult = JSON.parse(cached);
+          console.log(`[Flight Controller] Cache HIT for search: ${cacheKey}`);
+          return res.status(200).json({
+            ...cachedResult,
+            cached: true
+          });
+        }
+        console.log(`[Flight Controller] Cache MISS for search: ${cacheKey}`);
+      } catch (redisError) {
+        // If Redis fails, continue to MongoDB query (graceful degradation)
+        console.warn('[Flight Controller] Redis cache miss or error, falling back to MongoDB:', redisError.message);
       }
-      console.log(`[Flight Controller] Cache MISS for search: ${cacheKey}`);
-    } catch (redisError) {
-      // If Redis fails, continue to MongoDB query (graceful degradation)
-      console.warn('[Flight Controller] Redis cache miss or error, falling back to MongoDB:', redisError.message);
     }
 
     // Cache miss - continue with existing query logic
     let totalCount = flights.length;
     let totalPages = 1;
     // For performance testing: skip expensive countDocuments() query
-    const PERFORMANCE_TESTING = process.env.PERFORMANCE_TESTING === 'true' || process.env.NODE_ENV === 'test';
+    // PERFORMANCE_TESTING already declared above
     if (ENABLE_PAGINATION && !PERFORMANCE_TESTING) {
       totalCount = await Flight.countDocuments(query);
       totalPages = Math.ceil(totalCount / pageSize);
@@ -688,13 +694,15 @@ const searchFlights = async (req, res) => {
       data: flights
     };
 
-    // Cache the result in Redis with TTL
-    try {
-      await redisSet(cacheKey, JSON.stringify(response), REDIS_TTL_SEARCH);
-      console.log(`[Flight Controller] Cached search results: ${cacheKey}`);
-    } catch (redisError) {
-      // Log but don't fail the request if caching fails
-      console.warn('[Flight Controller] Failed to cache search results:', redisError.message);
+    // Cache the result in Redis with TTL - Skip in performance mode if configured
+    if (!(PERFORMANCE_TESTING && SKIP_REDIS_IN_PERF)) {
+      try {
+        await redisSet(cacheKey, JSON.stringify(response), REDIS_TTL_SEARCH);
+        console.log(`[Flight Controller] Cached search results: ${cacheKey}`);
+      } catch (redisError) {
+        // Log but don't fail the request if caching fails
+        console.warn('[Flight Controller] Failed to cache search results:', redisError.message);
+      }
     }
 
     res.status(200).json(response);
