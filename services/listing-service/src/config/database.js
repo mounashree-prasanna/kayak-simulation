@@ -9,8 +9,8 @@ const connectDB = async () => {
   try {
     const options = {
       // Connection pool options (Mongoose uses connection pooling by default)
-      maxPoolSize: ENABLE_POOLING ? parseInt(process.env.MONGODB_POOL_SIZE || '10') : 1,
-      minPoolSize: ENABLE_POOLING ? parseInt(process.env.MONGODB_MIN_POOL_SIZE || '2') : 1,
+      maxPoolSize: ENABLE_POOLING ? parseInt(process.env.MONGODB_POOL_SIZE || '100') : 1,
+      minPoolSize: ENABLE_POOLING ? parseInt(process.env.MONGODB_MIN_POOL_SIZE || '20') : 1,
       maxIdleTimeMS: 30000, // Close connections after 30s of inactivity
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,

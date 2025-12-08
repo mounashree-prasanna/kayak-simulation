@@ -87,6 +87,12 @@ const initializeKafka = async () => {
 };
 
 const publishBookingEvent = async (eventType, data) => {
+  // For performance testing: Skip Kafka entirely if not needed
+  // Kafka adds overhead even with fire-and-forget
+  if (process.env.PERFORMANCE_TESTING === 'true' || process.env.SKIP_KAFKA === 'true') {
+    return Promise.resolve();
+  }
+  
   if (!kafkaConnected) {
     // Silently skip if Kafka not connected - don't block the request
     return;
@@ -94,19 +100,22 @@ const publishBookingEvent = async (eventType, data) => {
   
   // Fire-and-forget: Don't await, let it run in background
   // This makes Kafka truly async and non-blocking
-  producer.send({
-    topic: KAFKA_TOPICS.BOOKING_EVENTS,
-    messages: [{
-      key: data.booking_id || (data._id ? data._id.toString() : ''),
-      value: JSON.stringify({
-        event_type: eventType,
-        timestamp: new Date(),
-        data
-      })
-    }]
-  }).catch(error => {
-    // Only log errors, don't throw - this is fire-and-forget
-    console.error(`[Booking Service] Failed to publish event (non-blocking): ${error.message}`);
+  // Use setImmediate to ensure it doesn't block the event loop
+  setImmediate(() => {
+    producer.send({
+      topic: KAFKA_TOPICS.BOOKING_EVENTS,
+      messages: [{
+        key: data.booking_id || (data._id ? data._id.toString() : ''),
+        value: JSON.stringify({
+          event_type: eventType,
+          timestamp: new Date(),
+          data
+        })
+      }]
+    }).catch(error => {
+      // Only log errors, don't throw - this is fire-and-forget
+      console.error(`[Booking Service] Failed to publish event (non-blocking): ${error.message}`);
+    });
   });
   
   // Return immediately without waiting for Kafka

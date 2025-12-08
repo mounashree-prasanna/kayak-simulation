@@ -122,7 +122,8 @@ services:
     container_name: kayak-listing-service
     environment:
       PORT: 3002
-      NODE_ENV: production
+      NODE_ENV: test
+      PERFORMANCE_TESTING: "true"
       MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
       MONGODB_DB_NAME: kayak
       KAFKA_BROKER: kafka:9092
@@ -131,6 +132,8 @@ services:
       REDIS_PORT: 6379
       REDIS_TTL_SEARCH: 600
       REDIS_TTL_DETAILS: 1800
+      MONGODB_POOL_SIZE: "100"
+      MONGODB_MIN_POOL_SIZE: "20"
       ENABLE_POOLING: "true"
       ENABLE_INDEXING: "true"
       ENABLE_PAGINATION: "true"
@@ -152,7 +155,8 @@ services:
     container_name: kayak-booking-service
     environment:
       PORT: 3003
-      NODE_ENV: production
+      NODE_ENV: test
+      PERFORMANCE_TESTING: "true"
       MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
       MONGODB_DB_NAME: kayak
       KAFKA_BROKER: kafka:9092
@@ -163,6 +167,7 @@ services:
       MYSQL_USER: root
       MYSQL_PASSWORD: rootpass
       MYSQL_DATABASE: kayak_db
+      MYSQL_POOL_SIZE: "50"
       REDIS_HOST: redis
       REDIS_PORT: 6379
       ENABLE_POOLING: "true"
@@ -194,6 +199,7 @@ services:
       MYSQL_USER: root
       MYSQL_PASSWORD: rootpass
       MYSQL_DATABASE: kayak_db
+      MYSQL_POOL_SIZE: "50"
       REDIS_HOST: redis
       REDIS_PORT: 6379
       ENABLE_POOLING: "true"
@@ -240,13 +246,15 @@ services:
     container_name: kayak-admin-analytics-service
     environment:
       PORT: 3006
-      NODE_ENV: production
+      NODE_ENV: test
+      PERFORMANCE_TESTING: "true"
       MONGODB_URI: mongodb+srv://alishakartik_db_user:LSnNV7VtlqoeKZdT@cluster-236.njc5716.mongodb.net/kayak?appName=Cluster-236
       MONGODB_DB_NAME: kayak
       KAFKA_BROKER: kafka:9092
       ENABLE_POOLING: "true"
       ENABLE_INDEXING: "true"
       ENABLE_PAGINATION: "true"
+      REQUIRE_ANALYTICS_AUTH: "false"  # Disable auth for performance testing
       ADMIN_API_KEY: admin-super-secret-key-change-in-production
       REDIS_HOST: redis
       REDIS_PORT: 6379

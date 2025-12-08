@@ -43,7 +43,12 @@
                  <stringProp name="Argument.value">BOS</stringProp>
                  <stringProp name="Argument.metadata">=</stringProp>
                </elementProp>
-             </collectionProp>
+              <elementProp name="date" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">2025-12-08</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
            </elementProp>
         </HTTPSamplerProxy>
         <hashTree/>
@@ -51,7 +56,7 @@
           <stringProp name="HTTPSampler.domain">localhost</stringProp>
           <stringProp name="HTTPSampler.port">3000</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
-          <stringProp name="HTTPSampler.path">/api/flights/SP0001</stringProp>
+          <stringProp name="HTTPSampler.path">/api/flights/DE1553</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
@@ -85,7 +90,7 @@
           <stringProp name="HTTPSampler.domain">localhost</stringProp>
           <stringProp name="HTTPSampler.port">3000</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
-          <stringProp name="HTTPSampler.path">/api/hotels/HOTEL000001</stringProp>
+          <stringProp name="HTTPSampler.path">/api/hotels/HOTEL002786</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
@@ -119,7 +124,7 @@
           <stringProp name="HTTPSampler.domain">localhost</stringProp>
           <stringProp name="HTTPSampler.port">3000</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
-          <stringProp name="HTTPSampler.path">/api/cars/CAR000001</stringProp>
+          <stringProp name="HTTPSampler.path">/api/cars/CAR001729</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
@@ -143,11 +148,11 @@
           </elementProp>
         </HTTPSamplerProxy>
         <hashTree/>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="8. Get Booking" enabled="true">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="8. Get Booking" enabled="false">
           <stringProp name="HTTPSampler.domain">localhost</stringProp>
           <stringProp name="HTTPSampler.port">3000</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
-          <stringProp name="HTTPSampler.path">/api/bookings/BK000001</stringProp>
+          <stringProp name="HTTPSampler.path">/api/bookings/BK803861</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
@@ -184,7 +189,7 @@
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.value">{&quot;user_id&quot;: &quot;123-45-6789&quot;, &quot;booking_type&quot;: &quot;Flight&quot;, &quot;reference_id&quot;: &quot;FL001&quot;, &quot;start_date&quot;: &quot;2024-12-25T08:00:00Z&quot;, &quot;end_date&quot;: &quot;2024-12-25T11:30:00Z&quot;, &quot;total_price&quot;: 350}</stringProp>
+                <stringProp name="Argument.value">{&quot;user_id&quot;: &quot;376-11-8477&quot;, &quot;booking_type&quot;: &quot;Flight&quot;, &quot;reference_id&quot;: &quot;DE1553&quot;, &quot;start_date&quot;: &quot;2025-12-08T07:37:00Z&quot;, &quot;end_date&quot;: &quot;2025-12-08T09:30:00Z&quot;, &quot;total_price&quot;: 85}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
             </collectionProp>
@@ -220,8 +225,7 @@
                </elementProp>
              </collectionProp>
           </elementProp>
-        </HTTPSamplerProxy>
-        <hashTree/>
+        </HTTPSamplerProxy><hashTree></hashTree>
         <ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="Summary Report" enabled="true">
           <boolProp name="ResultCollector.error_logging">false</boolProp>
           <objProp>

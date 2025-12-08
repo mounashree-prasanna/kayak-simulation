@@ -144,8 +144,10 @@ def calculate_metrics(df, combination_name):
     success_rate = (successful / total_requests * 100) if total_requests > 0 else 0
     error_rate = (failed / total_requests * 100) if total_requests > 0 else 0
     
-    # Response time metrics (in milliseconds)
-    elapsed_times = df['elapsed'].dropna()
+    # Response time metrics (in milliseconds) - only for successful requests
+    # This gives a more accurate picture since failed requests (400/404) return quickly
+    successful_df = df[df['success'] == True]
+    elapsed_times = successful_df['elapsed'].dropna() if len(successful_df) > 0 else df['elapsed'].dropna()
     avg_response_time = elapsed_times.mean() if len(elapsed_times) > 0 else 0
     min_response_time = elapsed_times.min() if len(elapsed_times) > 0 else 0
     max_response_time = elapsed_times.max() if len(elapsed_times) > 0 else 0

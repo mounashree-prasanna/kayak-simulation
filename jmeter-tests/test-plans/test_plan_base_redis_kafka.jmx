@@ -43,7 +43,12 @@
                  <stringProp name="Argument.value">BOS</stringProp>
                  <stringProp name="Argument.metadata">=</stringProp>
                </elementProp>
-             </collectionProp>
+              <elementProp name="date" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">2025-12-08</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
            </elementProp>
         </HTTPSamplerProxy>
         <hashTree/>
@@ -51,7 +56,7 @@
           <stringProp name="HTTPSampler.domain">localhost</stringProp>
           <stringProp name="HTTPSampler.port">3000</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
-          <stringProp name="HTTPSampler.path">/api/flights/SP0001</stringProp>
+          <stringProp name="HTTPSampler.path">/api/flights/DE1553</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
@@ -85,7 +90,7 @@
           <stringProp name="HTTPSampler.domain">localhost</stringProp>
           <stringProp name="HTTPSampler.port">3000</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
-          <stringProp name="HTTPSampler.path">/api/hotels/HOTEL000001</stringProp>
+          <stringProp name="HTTPSampler.path">/api/hotels/HOTEL002786</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
@@ -119,7 +124,7 @@
           <stringProp name="HTTPSampler.domain">localhost</stringProp>
           <stringProp name="HTTPSampler.port">3000</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
-          <stringProp name="HTTPSampler.path">/api/cars/CAR000001</stringProp>
+          <stringProp name="HTTPSampler.path">/api/cars/CAR001729</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
@@ -143,11 +148,11 @@
           </elementProp>
         </HTTPSamplerProxy>
         <hashTree/>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="8. Get Booking" enabled="true">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="8. Get Booking" enabled="false">
           <stringProp name="HTTPSampler.domain">localhost</stringProp>
           <stringProp name="HTTPSampler.port">3000</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
-          <stringProp name="HTTPSampler.path">/api/bookings/BK000001</stringProp>
+          <stringProp name="HTTPSampler.path">/api/bookings/BK870586</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
@@ -184,7 +189,7 @@
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.value">{&quot;user_id&quot;: &quot;376-11-8477&quot;, &quot;booking_type&quot;: &quot;Flight&quot;, &quot;reference_id&quot;: &quot;SP0001&quot;, &quot;start_date&quot;: &quot;2024-12-25T08:00:00Z&quot;, &quot;end_date&quot;: &quot;2024-12-25T11:30:00Z&quot;, &quot;total_price&quot;: 350}</stringProp>
+                <stringProp name="Argument.value">{&quot;user_id&quot;: &quot;376-11-8477&quot;, &quot;booking_type&quot;: &quot;Flight&quot;, &quot;reference_id&quot;: &quot;DE1553&quot;, &quot;start_date&quot;: &quot;2025-12-08T07:37:00Z&quot;, &quot;end_date&quot;: &quot;2025-12-08T09:30:00Z&quot;, &quot;total_price&quot;: 85}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
             </collectionProp>
@@ -203,7 +208,7 @@
           </HeaderManager>
           <hashTree/>
         </hashTree>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="11. Top Properties Analytics" enabled="true">
+                <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="11. Top Properties Analytics" enabled="true">
           <stringProp name="HTTPSampler.domain">localhost</stringProp>
           <stringProp name="HTTPSampler.port">3000</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
@@ -221,8 +226,7 @@
                </elementProp>
              </collectionProp>
           </elementProp>
-        </HTTPSamplerProxy>
-        <hashTree/>
+        </HTTPSamplerProxy><hashTree></hashTree>
         <ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="Summary Report" enabled="true">
           <boolProp name="ResultCollector.error_logging">false</boolProp>
           <objProp>
@@ -367,6 +371,11 @@
                 <stringProp name="Argument.value">BOS</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
+              <elementProp name="date" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">2025-12-08</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
             </collectionProp>
           </elementProp>
         </HTTPSamplerProxy>
@@ -396,7 +405,7 @@
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.value">{&quot;user_id&quot;: &quot;376-11-8477&quot;, &quot;booking_type&quot;: &quot;Flight&quot;, &quot;reference_id&quot;: &quot;SP0001&quot;, &quot;start_date&quot;: &quot;2024-12-25T08:00:00Z&quot;, &quot;end_date&quot;: &quot;2024-12-25T11:30:00Z&quot;, &quot;total_price&quot;: 350}</stringProp>
+                <stringProp name="Argument.value">{&quot;user_id&quot;: &quot;376-11-8477&quot;, &quot;booking_type&quot;: &quot;Flight&quot;, &quot;reference_id&quot;: &quot;DE1553&quot;, &quot;start_date&quot;: &quot;2025-12-08T07:37:00Z&quot;, &quot;end_date&quot;: &quot;2025-12-08T09:30:00Z&quot;, &quot;total_price&quot;: 85}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
             </collectionProp>
@@ -427,7 +436,7 @@
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.value">{&quot;user_id&quot;: &quot;376-11-8477&quot;, &quot;booking_id&quot;: &quot;BK000001&quot;, &quot;payment_method&quot;: &quot;credit_card&quot;, &quot;amount&quot;: 350}</stringProp>
+                <stringProp name="Argument.value">{&quot;user_id&quot;: &quot;376-11-8477&quot;, &quot;booking_id&quot;: &quot;BK870586&quot;, &quot;payment_method&quot;: &quot;credit_card&quot;, &quot;amount&quot;: 350}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
             </collectionProp>
@@ -458,7 +467,7 @@
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.value">{&quot;user_id&quot;: &quot;999-99-9999&quot;, &quot;first_name&quot;: &quot;Test&quot;, &quot;last_name&quot;: &quot;User&quot;, &quot;email&quot;: &quot;test@example.com&quot;, &quot;password&quot;: &quot;Test123!@#&quot;, &quot;phone_number&quot;: &quot;555-1234&quot;, &quot;address&quot;: {&quot;street&quot;: &quot;123 Test St&quot;, &quot;city&quot;: &quot;Test City&quot;, &quot;state&quot;: &quot;CA&quot;, &quot;zip&quot;: &quot;12345&quot;}}</stringProp>
+                <stringProp name="Argument.value">{&quot;user_id&quot;: &quot;376-11-8477&quot;, &quot;first_name&quot;: &quot;Test&quot;, &quot;last_name&quot;: &quot;User&quot;, &quot;email&quot;: &quot;test@example.com&quot;, &quot;password&quot;: &quot;Test123!@#&quot;, &quot;phone_number&quot;: &quot;555-1234&quot;, &quot;address&quot;: {&quot;street&quot;: &quot;123 Test St&quot;, &quot;city&quot;: &quot;Test City&quot;, &quot;state&quot;: &quot;CA&quot;, &quot;zip&quot;: &quot;12345&quot;}}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
             </collectionProp>
