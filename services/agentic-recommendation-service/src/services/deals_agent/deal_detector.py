@@ -120,8 +120,6 @@ class DealDetector:
             else:
                 score += 10
         else:
-            # No price history and no discount - use price competitiveness
-            # For flights: $200-600 is competitive, hotels: $50-300 is competitive
             if listing_type == "Flight":
                 if 200 <= current_price <= 600:
                     score += 25  # Competitive flight price
@@ -137,7 +135,6 @@ class DealDetector:
                 else:
                     score += 5
         
-        # Limited availability scoring (30 points max)
         rooms_or_seats = normalized.get("rooms_left") or normalized.get("seats_left")
         if rooms_or_seats is not None:
             if rooms_or_seats < 3:
@@ -151,14 +148,11 @@ class DealDetector:
             elif rooms_or_seats < 50:
                 score += 10
             else:
-                score += 5  # Plenty available
+                score += 5  
         else:
-            score += 5  # Unknown availability
-        
-        # Price competitiveness bonus (20 points max)
-        # Compare to typical market prices
+            score += 5  
+
         if listing_type == "Flight":
-            # Typical flight prices: $300-500 for domestic
             if current_price <= 400:
                 score += 15  # Good price
             elif current_price <= 500:
@@ -166,7 +160,6 @@ class DealDetector:
             elif current_price <= 600:
                 score += 5
         else:  # Hotel
-            # Typical hotel prices: $100-250 per night
             price_per_night = current_price / max(1, normalized.get("rooms_left", 1))
             if price_per_night <= 150:
                 score += 15  # Good price
@@ -182,13 +175,10 @@ class DealDetector:
         listing_id = normalized.get("listing_id", "")
         listing_type = normalized.get("listing_type", "Hotel")
         
-        # Calculate 30-day average
         avg_30d_price = await self.calculate_30d_average(listing_id, listing_type)
         
-        # Calculate deal score
         deal_score = self.calculate_deal_score(normalized, avg_30d_price)
         
-        # Determine if it's a deal (score >= 50)
         is_deal = deal_score >= 50
         
         scored = {
@@ -208,13 +198,9 @@ class DealDetector:
             async for message in self.consumer:
                 try:
                     normalized = message.value
-                    
-                    # Process all records (not just high-scoring deals)
-                    # This ensures all flights/hotels are available for bundle recommendations
+     
                     scored = await self.detect_deal(normalized)
-                    
-                    # Publish all scored records (not just deals with score >= 50)
-                    # The OfferTagger will save them all to the database
+
                     listing_id = scored.get("listing_id", "")
                     await self.producer.send(
                         TOPIC_DEALS_SCORED,

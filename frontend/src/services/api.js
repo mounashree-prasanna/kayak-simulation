@@ -98,8 +98,30 @@ api.interceptors.response.use(
         window.location.href = '/login'
       }
     } 
-    // Handle network errors
+    // Handle network errors - retry on connection reset/timeout errors
     else if (!error.response) {
+      const isConnectionError = error.code === 'ERR_NETWORK' || 
+                                error.code === 'ECONNABORTED' ||
+                                error.code === 'ECONNRESET' ||
+                                error.code === 'ETIMEDOUT' ||
+                                error.code === 'ECONNREFUSED' ||
+                                error.message?.includes('Network Error') ||
+                                error.message?.includes('timeout') ||
+                                error.message?.includes('ECONNRESET') ||
+                                (error.request && !error.response) // Any request without response
+      
+      // Retry connection errors once if not already retried
+      if (isConnectionError && !originalRequest._retry && !isAuthEndpoint) {
+        originalRequest._retry = true
+        // Wait a bit before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        try {
+          return api(originalRequest)
+        } catch (retryError) {
+          // If retry also fails, fall through to error handling
+        }
+      }
+      
       store.dispatch(addNotification({
         type: 'error',
         title: 'Network Error',

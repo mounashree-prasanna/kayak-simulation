@@ -328,8 +328,7 @@ services:
       REDIS_DB: 0
       SQLITE_DATABASE_URL: sqlite:///./data/deals.db
       LISTING_SERVICE_URL: http://listing-service:3002
-      # Optional: Add OPENAI_API_KEY here if needed, or create .env file
-      # OPENAI_API_KEY: your-api-key-here
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
     volumes:
       - agentic-data:/app/data
       - ./services/agentic-recommendation-service/data/csv:/app/data/csv:ro

@@ -23,7 +23,6 @@ const CarSearch = () => {
   const pickupDateParam = searchParams.get('pickupDate')
   const dropoffDateParam = searchParams.get('dropoffDate')
 
-  // Search form state
   const [searchForm, setSearchForm] = useState({
     city: cityParam || '',
     pickupDate: pickupDateParam ? new Date(pickupDateParam) : null,
@@ -37,7 +36,6 @@ const CarSearch = () => {
   const { user } = useAppSelector(state => state.auth)
 
   useEffect(() => {
-    // Log page visit for analytics
     const pagePath = '/cars'
     logPageClick(pagePath, 'car-search-page', user?.user_id || user?._id || null)
     
@@ -45,7 +43,6 @@ const CarSearch = () => {
   }, [searchParams, sortBy])
 
   useEffect(() => {
-    // Update form when URL params change
     setSearchForm({
       city: cityParam || '',
       pickupDate: pickupDateParam ? new Date(pickupDateParam) : null,
@@ -82,7 +79,6 @@ const CarSearch = () => {
       setLoading(true)
       setError(null)
       
-      // Backend expects: city, pickupDate, dropoffDate (optional)
       const params = {}
       if (city) params.city = city
       if (pickupDate) params.pickupDate = pickupDate
@@ -91,7 +87,6 @@ const CarSearch = () => {
       const response = await api.get('/cars/search', { params })
       let carsData = response.data.data || []
       
-      // Sort cars - handle both field name variations
       if (sortBy === 'price') {
         carsData.sort((a, b) => (a.daily_rental_price || a.price_per_day || 0) - (b.daily_rental_price || b.price_per_day || 0))
       } else if (sortBy === 'name') {
@@ -103,29 +98,30 @@ const CarSearch = () => {
       }
       
       setCars(carsData)
-      setCurrentPage(1) // Reset to first page on new search
+      setCurrentPage(1) 
       
-      // Fetch images for each car
       const imagesMap = {}
       for (const car of carsData) {
-        try {
-          // Use car_id (string) instead of _id (ObjectId) since images are linked to car_id
-          const carId = car.car_id || car._id
-          if (!carId) continue
-          
-          const imageResponse = await api.get('/images/primary', {
-            params: { entity_type: 'Car', entity_id: String(carId) }
-          })
-          if (imageResponse.data.success && imageResponse.data.data) {
-            // Store image URL using both _id and car_id as keys for lookup
-            const imageUrl = imageResponse.data.data.image_url
-            if (car._id) imagesMap[car._id] = imageUrl
-            if (car.car_id) imagesMap[car.car_id] = imageUrl
-          }
-        } catch (imgErr) {
-          // Image not found, use placeholder - only log if it's not a 404
-          if (imgErr.response?.status !== 404) {
-            console.log(`Error fetching image for car ${car.car_id || car._id}:`, imgErr.message)
+        const carId = car._id || car.car_id
+        if (!carId) continue
+        
+        if (car.image_url) {
+          if (car._id) imagesMap[car._id] = car.image_url
+          if (car.car_id) imagesMap[car.car_id] = car.image_url
+        } else {
+          try {
+            const imageResponse = await api.get('/images/primary', {
+              params: { entity_type: 'Car', entity_id: String(car.car_id || car._id) }
+            })
+            if (imageResponse.data.success && imageResponse.data.data) {
+              const imageUrl = imageResponse.data.data.image_url
+              if (car._id) imagesMap[car._id] = imageUrl
+              if (car.car_id) imagesMap[car.car_id] = imageUrl
+            }
+          } catch (imgErr) {
+            if (imgErr.response?.status !== 404) {
+              console.log(`Error fetching image for car ${car.car_id || car._id}:`, imgErr.message)
+            }
           }
         }
       }

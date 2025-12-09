@@ -1,10 +1,6 @@
 const { verifyAccessToken } = require('../utils/jwt');
 const { hasPermission } = require('../controllers/adminController');
 
-/**
- * Middleware to verify access token
- * Adds admin info to req.admin if token is valid
- */
 const authenticate = async (req, res, next) => {
   try {
     console.log('[Auth Middleware] Request received:', req.method, req.path);
@@ -13,7 +9,6 @@ const authenticate = async (req, res, next) => {
       'content-type': req.headers['content-type']
     });
     
-    // Get token from Authorization header
     const authHeader = req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -46,8 +41,7 @@ const authenticate = async (req, res, next) => {
       });
     } catch (error) {
       console.error('[Auth Middleware] Token verification failed:', error.message);
-      // If token verification fails, it might be expired
-      // Return a more helpful error message
+
       return res.status(401).json({
         success: false,
         error: 'Invalid or expired token. Please log in again.',
@@ -55,8 +49,6 @@ const authenticate = async (req, res, next) => {
       });
     }
     
-    // Check if it's an admin token - accept if type is 'admin' OR if admin_id exists
-    // Also check if role indicates admin access
     const isAdmin = decoded.type === 'admin' || 
                     decoded.admin_id || 
                     (decoded.role && (decoded.role === 'admin' || decoded.role.includes('Admin')));
@@ -99,9 +91,6 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-/**
- * Middleware to check if user is admin
- */
 const requireAdmin = (req, res, next) => {
   if (!req.admin) {
     return res.status(403).json({
@@ -113,7 +102,6 @@ const requireAdmin = (req, res, next) => {
 };
 
 /**
- * Middleware to check admin permissions
  * @param {String} permission - Required permission
  */
 const requirePermission = (permission) => {

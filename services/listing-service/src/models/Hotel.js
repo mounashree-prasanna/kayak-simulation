@@ -73,6 +73,10 @@ const hotelSchema = new Schema({
     min: 0,
     max: 5
   },
+  image_url: {
+    type: String,
+    trim: true
+  },
   created_at: {
     type: Date,
     default: Date.now

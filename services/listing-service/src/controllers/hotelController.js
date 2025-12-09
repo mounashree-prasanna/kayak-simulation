@@ -26,16 +26,25 @@ const searchHotels = async (req, res) => {
     // Feature flag for pagination
     const ENABLE_PAGINATION = process.env.ENABLE_PAGINATION !== 'false'; // Default: enabled
     
-    const { city, checkIn, checkOut, date, price_min, price_max, stars, wifi, breakfast_included, parking, pet_friendly, near_transit, page, limit } = req.query;
+    const { city, checkIn, checkOut, date, price_min, price_max, stars, wifi, breakfast_included, parking, pet_friendly, near_transit, page, limit, name } = req.query;
     
     // Pagination parameters
     const pageNum = ENABLE_PAGINATION ? parseInt(page) || 1 : 1;
     const pageSize = ENABLE_PAGINATION ? parseInt(limit) || 20 : 100; // Default 20 when enabled, 100 when disabled
     const skip = (pageNum - 1) * pageSize;
 
+    // If limit is high (like 1000), assume it's an admin request to fetch all hotels
+    const isAdminFetch = limit && parseInt(limit) >= 1000;
+
     const query = {};
 
-    if (city) {
+    // Name search (for admin)
+    if (name && name.trim()) {
+      query.name = new RegExp(name.trim(), 'i');
+    }
+
+    // City filter - skip for admin fetch if no city provided
+    if (city && city.trim()) {
       query['address.city'] = new RegExp(city, 'i');
     }
 
@@ -322,6 +331,11 @@ const getHotel = async (req, res) => {
 
 const createHotel = async (req, res) => {
   try {
+    // Generate hotel_id automatically if not provided
+    if (!req.body.hotel_id) {
+      req.body.hotel_id = new mongoose.Types.ObjectId().toString();
+    }
+    
     const hotel = new Hotel(req.body);
     const savedHotel = await hotel.save();
 

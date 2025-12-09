@@ -28,6 +28,14 @@ const Dashboard = () => {
   const [imagePreview, setImagePreview] = useState(null)
   const [reviews, setReviews] = useState([])
   const [loadingReviews, setLoadingReviews] = useState(false)
+  const [isEditingPayment, setIsEditingPayment] = useState(false)
+  const [paymentFormData, setPaymentFormData] = useState({
+    cardNumber: '',
+    cardholderName: '',
+    expiryMonth: '',
+    expiryYear: '',
+    cardType: 'Credit Card'
+  })
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -51,6 +59,18 @@ const Dashboard = () => {
         }
       })
       setImagePreview(user.profile_image_url || null)
+      
+      // Initialize payment form data from user's saved payment details
+      if (user.payment_details) {
+        setPaymentFormData({
+          cardNumber: user.payment_details.masked_number || '',
+          cardholderName: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+          expiryMonth: user.payment_details.expiry_month?.toString() || '',
+          expiryYear: user.payment_details.expiry_year?.toString() || '',
+          cardType: user.payment_details.card_type || 'Credit Card'
+        })
+      }
+      
       fetchUserReviews()
     }
   }, [user])
@@ -197,8 +217,194 @@ const Dashboard = () => {
         }
       })
       setImagePreview(user.profile_image_url || null)
+      
+      // Reset payment form data
+      if (user.payment_details) {
+        setPaymentFormData({
+          cardNumber: user.payment_details.masked_number || '',
+          cardholderName: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+          expiryMonth: user.payment_details.expiry_month?.toString() || '',
+          expiryYear: user.payment_details.expiry_year?.toString() || '',
+          cardType: user.payment_details.card_type || 'Credit Card'
+        })
+      } else {
+        setPaymentFormData({
+          cardNumber: '',
+          cardholderName: '',
+          expiryMonth: '',
+          expiryYear: '',
+          cardType: 'Credit Card'
+        })
+      }
     }
     setIsEditing(false)
+    setIsEditingPayment(false)
+  }
+
+  const handlePaymentChange = (e) => {
+    const { name, value } = e.target
+    setPaymentFormData(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+
+  const formatCardNumber = (value) => {
+    const cleaned = value.replace(/\s+/g, '')
+    const chunks = cleaned.match(/.{1,4}/g) || []
+    return chunks.join(' ').slice(0, 19)
+  }
+
+  const handleCardNumberChange = (e) => {
+    const formatted = formatCardNumber(e.target.value)
+    setPaymentFormData(prev => ({ ...prev, cardNumber: formatted }))
+  }
+
+  const handleSavePayment = async () => {
+    // Validate payment form
+    const cardNumberClean = paymentFormData.cardNumber.replace(/\s/g, '')
+    if (!cardNumberClean.match(/^\d{13,19}$/)) {
+      dispatch(addNotification({
+        type: 'error',
+        title: 'Invalid Card Number',
+        message: 'Please enter a valid card number (13-19 digits)',
+        severity: 'error'
+      }))
+      return
+    }
+
+    if (!paymentFormData.cardholderName.trim()) {
+      dispatch(addNotification({
+        type: 'error',
+        title: 'Invalid Cardholder Name',
+        message: 'Please enter cardholder name',
+        severity: 'error'
+      }))
+      return
+    }
+
+    if (!paymentFormData.expiryMonth || !paymentFormData.expiryYear) {
+      dispatch(addNotification({
+        type: 'error',
+        title: 'Invalid Expiry Date',
+        message: 'Please enter expiry month and year',
+        severity: 'error'
+      }))
+      return
+    }
+
+    const expiryMonth = parseInt(paymentFormData.expiryMonth)
+    const expiryYear = parseInt(paymentFormData.expiryYear)
+
+    if (expiryMonth < 1 || expiryMonth > 12) {
+      dispatch(addNotification({
+        type: 'error',
+        title: 'Invalid Month',
+        message: 'Expiry month must be between 1 and 12',
+        severity: 'error'
+      }))
+      return
+    }
+
+    if (expiryYear < 2020) {
+      dispatch(addNotification({
+        type: 'error',
+        title: 'Invalid Year',
+        message: 'Expiry year must be 2020 or later',
+        severity: 'error'
+      }))
+      return
+    }
+
+    setSaving(true)
+    try {
+      const last4 = cardNumberClean.slice(-4)
+      const maskedNumber = `**** **** **** ${last4}`
+
+      let cardType = paymentFormData.cardType
+      if (!cardType || cardType === 'Credit Card') {
+        const firstDigit = cardNumberClean[0]
+        if (firstDigit === '4') {
+          cardType = 'Visa'
+        } else if (firstDigit === '5') {
+          cardType = 'Mastercard'
+        } else if (firstDigit === '3') {
+          cardType = 'American Express'
+        } else {
+          cardType = 'Credit Card'
+        }
+      }
+
+      const paymentDetails = {
+        masked_number: maskedNumber,
+        card_type: cardType,
+        expiry_month: expiryMonth,
+        expiry_year: expiryYear
+      }
+
+      await dispatch(updateUser({ 
+        user_id: user.user_id, 
+        updates: { payment_details: paymentDetails } 
+      })).unwrap()
+      
+      dispatch(addNotification({
+        type: 'success',
+        title: 'Payment Method Saved',
+        message: 'Your payment method has been saved successfully.',
+        severity: 'success'
+      }))
+      
+      setIsEditingPayment(false)
+    } catch (error) {
+      dispatch(addNotification({
+        type: 'error',
+        title: 'Save Failed',
+        message: error || 'Failed to save payment method. Please try again.',
+        severity: 'error'
+      }))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRemovePayment = async () => {
+    if (!window.confirm('Are you sure you want to remove your payment method?')) {
+      return
+    }
+
+    setSaving(true)
+    try {
+      await dispatch(updateUser({ 
+        user_id: user.user_id, 
+        updates: { payment_details: null } 
+      })).unwrap()
+      
+      setPaymentFormData({
+        cardNumber: '',
+        cardholderName: '',
+        expiryMonth: '',
+        expiryYear: '',
+        cardType: 'Credit Card'
+      })
+      
+      dispatch(addNotification({
+        type: 'success',
+        title: 'Payment Method Removed',
+        message: 'Your payment method has been removed successfully.',
+        severity: 'success'
+      }))
+      
+      setIsEditingPayment(false)
+    } catch (error) {
+      dispatch(addNotification({
+        type: 'error',
+        title: 'Remove Failed',
+        message: error || 'Failed to remove payment method. Please try again.',
+        severity: 'error'
+      }))
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleDeleteAccount = async () => {
@@ -464,6 +670,147 @@ const Dashboard = () => {
                 <span className="info-value">{user?.address?.zip || 'N/A'}</span>
               )}
             </div>
+          </div>
+
+          {/* Payment Method Section */}
+          <div className="payment-method-section">
+            <div className="payment-method-header">
+              <h2>Payment Method</h2>
+              {!isEditingPayment ? (
+                <div className="payment-actions">
+                  {user?.payment_details ? (
+                    <>
+                      <button className="btn-edit" onClick={() => setIsEditingPayment(true)}>
+                        Edit Payment Method
+                      </button>
+                      <button className="btn-delete" onClick={handleRemovePayment}>
+                        Remove Payment Method
+                      </button>
+                    </>
+                  ) : (
+                    <button className="btn-edit" onClick={() => setIsEditingPayment(true)}>
+                      Add Payment Method
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="edit-actions">
+                  <button className="btn-cancel" onClick={handleCancel} disabled={saving}>
+                    Cancel
+                  </button>
+                  <button className="btn-save" onClick={handleSavePayment} disabled={saving}>
+                    {saving ? 'Saving...' : 'Save Payment Method'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {isEditingPayment ? (
+              <div className="payment-form-container">
+                <div className="info-grid">
+                  <div className="info-item full-width">
+                    <span className="info-label">Card Number</span>
+                    <input
+                      type="text"
+                      name="cardNumber"
+                      value={paymentFormData.cardNumber}
+                      onChange={handleCardNumberChange}
+                      className="info-input"
+                      placeholder="1234 5678 9012 3456"
+                      maxLength="19"
+                      required
+                    />
+                  </div>
+
+                  <div className="info-item full-width">
+                    <span className="info-label">Cardholder Name</span>
+                    <input
+                      type="text"
+                      name="cardholderName"
+                      value={paymentFormData.cardholderName}
+                      onChange={handlePaymentChange}
+                      className="info-input"
+                      placeholder="John Doe"
+                      required
+                    />
+                  </div>
+
+                  <div className="info-item">
+                    <span className="info-label">Expiry Month</span>
+                    <input
+                      type="number"
+                      name="expiryMonth"
+                      value={paymentFormData.expiryMonth}
+                      onChange={handlePaymentChange}
+                      className="info-input"
+                      placeholder="MM"
+                      min="1"
+                      max="12"
+                      required
+                    />
+                  </div>
+
+                  <div className="info-item">
+                    <span className="info-label">Expiry Year</span>
+                    <input
+                      type="number"
+                      name="expiryYear"
+                      value={paymentFormData.expiryYear}
+                      onChange={handlePaymentChange}
+                      className="info-input"
+                      placeholder="YYYY"
+                      min="2020"
+                      required
+                    />
+                  </div>
+
+                  <div className="info-item">
+                    <span className="info-label">Card Type</span>
+                    <select
+                      name="cardType"
+                      value={paymentFormData.cardType}
+                      onChange={handlePaymentChange}
+                      className="info-input"
+                      required
+                    >
+                      <option value="Credit Card">Credit Card</option>
+                      <option value="Debit Card">Debit Card</option>
+                      <option value="Visa">Visa</option>
+                      <option value="Mastercard">Mastercard</option>
+                      <option value="American Express">American Express</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="payment-info-display">
+                {user?.payment_details ? (
+                  <div className="payment-card-display">
+                    <div className="payment-card-info">
+                      <div className="payment-card-row">
+                        <span className="payment-label">Card Number:</span>
+                        <span className="payment-value">{user.payment_details.masked_number || 'N/A'}</span>
+                      </div>
+                      <div className="payment-card-row">
+                        <span className="payment-label">Card Type:</span>
+                        <span className="payment-value">{user.payment_details.card_type || 'N/A'}</span>
+                      </div>
+                      <div className="payment-card-row">
+                        <span className="payment-label">Expiry:</span>
+                        <span className="payment-value">
+                          {user.payment_details.expiry_month?.toString().padStart(2, '0') || 'MM'}/
+                          {user.payment_details.expiry_year?.toString().slice(-2) || 'YY'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="no-payment-method">
+                    <p>No payment method saved. Add one to speed up your checkout process.</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

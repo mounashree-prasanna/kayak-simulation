@@ -26,8 +26,6 @@ class DealsAgent:
     
     async def calculate_avg_30d_price(self, listing_type: str, listing_id: str) -> float:
         """Calculate average price over last 30 days from historical data"""
-        # In a real system, query historical pricing data
-        # For now, return a mock value
         return 500.0
     
     async def score_deal(self, deal: DealModel) -> DealModel:

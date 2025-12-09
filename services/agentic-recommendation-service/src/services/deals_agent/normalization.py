@@ -120,9 +120,6 @@ class NormalizationStage:
         }
         
         if listing_type == "Hotel":
-            # Map various column names from different datasets
-            # Airbnb: id, name, neighbourhood_cleansed, city, price, amenities, etc.
-            # Hotel Booking: hotel, arrival_date_year, arrival_date_month, arrival_date_day_of_month, adr (average daily rate), etc.
             
             listing_id = (raw_data.get("id") or raw_data.get("hotel_id") or 
                          raw_data.get("listing_id") or str(raw_data.get("_id", "")))
@@ -133,17 +130,14 @@ class NormalizationStage:
             city = (raw_data.get("city") or raw_data.get("neighbourhood_cleansed") or 
                    raw_data.get("neighbourhood") or "")
             
-            # For Airbnb: use price field, for hotel booking: use adr (average daily rate)
             price = (raw_data.get("price") or raw_data.get("adr") or 
                     raw_data.get("base_price") or raw_data.get("current_price") or 0)
             
-            # For Airbnb: availability_30 or availability_365, for hotel booking: calculate from booking data
             rooms_available = (raw_data.get("availability_30") or 
                               raw_data.get("availability_365") or
                               raw_data.get("rooms_available") or 
                               raw_data.get("rooms_left") or 0)
             
-            # Parse amenities - Airbnb has it as JSON string or comma-separated
             amenities_str = (raw_data.get("amenities") or 
                            raw_data.get("amenities_list") or "")
             
@@ -160,8 +154,6 @@ class NormalizationStage:
                 "cancellation_window": self.normalize_availability(raw_data.get("cancellation_window", 0)) if raw_data.get("cancellation_window") else None,
             })
         elif listing_type == "Flight":
-            # Map various column names from different datasets
-            # Flight Price Prediction: airline, flight, source_city, destination_city, departure_time, arrival_time, stops, duration, price, class, days_left
             
             listing_id = (raw_data.get("flight") or raw_data.get("flight_id") or 
                          raw_data.get("listing_id") or "")

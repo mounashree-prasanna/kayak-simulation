@@ -44,7 +44,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Proxy routes
+// Proxy routes - MUST be before body parsers to allow streaming request bodies
 app.use('/api/users', createProxyMiddleware({
   target: USER_SERVICE_URL,
   changeOrigin: true,
@@ -72,13 +72,49 @@ app.use('/api/users', createProxyMiddleware({
 app.use('/api/flights', createProxyMiddleware({
   target: LISTING_SERVICE_URL,
   changeOrigin: true,
-  pathRewrite: { '^/api/flights': '/flights' }
+  pathRewrite: { '^/api/flights': '/flights' },
+  logLevel: 'info',
+  onProxyReq: (proxyReq, req, res) => {
+    console.log(`[API Gateway] Proxying ${req.method} ${req.originalUrl || req.url} to ${LISTING_SERVICE_URL}${req.url.replace('/api/flights', '/flights')}`);
+  },
+  onProxyRes: (proxyRes, req, res) => {
+    console.log(`[API Gateway] Received ${proxyRes.statusCode} from listing service for ${req.path}`);
+  },
+  onError: (err, req, res) => {
+    console.error(`[API Gateway] Proxy error for ${req.path}:`, err.message, err.code);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to connect to listing service: ' + err.message
+      });
+    }
+  },
+  timeout: 60000,
+  proxyTimeout: 60000
 }));
 
 app.use('/api/hotels', createProxyMiddleware({
   target: LISTING_SERVICE_URL,
   changeOrigin: true,
-  pathRewrite: { '^/api/hotels': '/hotels' }
+  pathRewrite: { '^/api/hotels': '/hotels' },
+  logLevel: 'info',
+  onProxyReq: (proxyReq, req, res) => {
+    console.log(`[API Gateway] Proxying ${req.method} ${req.originalUrl || req.url} to ${LISTING_SERVICE_URL}${req.url.replace('/api/hotels', '/hotels')}`);
+  },
+  onProxyRes: (proxyRes, req, res) => {
+    console.log(`[API Gateway] Received ${proxyRes.statusCode} from listing service for ${req.path}`);
+  },
+  onError: (err, req, res) => {
+    console.error(`[API Gateway] Proxy error for ${req.path}:`, err.message, err.code);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to connect to listing service: ' + err.message
+      });
+    }
+  },
+  timeout: 60000,
+  proxyTimeout: 60000
 }));
 
 app.use('/api/images', createProxyMiddleware({
@@ -90,7 +126,25 @@ app.use('/api/images', createProxyMiddleware({
 app.use('/api/cars', createProxyMiddleware({
   target: LISTING_SERVICE_URL,
   changeOrigin: true,
-  pathRewrite: { '^/api/cars': '/cars' }
+  pathRewrite: { '^/api/cars': '/cars' },
+  logLevel: 'info',
+  onProxyReq: (proxyReq, req, res) => {
+    console.log(`[API Gateway] Proxying ${req.method} ${req.originalUrl || req.url} to ${LISTING_SERVICE_URL}${req.url.replace('/api/cars', '/cars')}`);
+  },
+  onProxyRes: (proxyRes, req, res) => {
+    console.log(`[API Gateway] Received ${proxyRes.statusCode} from listing service for ${req.path}`);
+  },
+  onError: (err, req, res) => {
+    console.error(`[API Gateway] Proxy error for ${req.path}:`, err.message, err.code);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to connect to listing service: ' + err.message
+      });
+    }
+  },
+  timeout: 60000,
+  proxyTimeout: 60000
 }));
 
 app.use('/api/bookings', createProxyMiddleware({
@@ -254,6 +308,11 @@ app.use('/api/ingest', createProxyMiddleware({
   timeout: 30000,
   proxyTimeout: 30000
 }));
+
+// Body parsers - MUST be after proxy routes to allow streaming request bodies
+// These are only used for non-proxy routes (if any)
+app.use(express.json({ limit: '50mb' })); // Increased limit for base64 images
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // 404 handler
 app.use((req, res) => {

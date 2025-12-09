@@ -26,79 +26,91 @@ const searchFlights = async (req, res) => {
     // Feature flag for pagination
     const ENABLE_PAGINATION = process.env.ENABLE_PAGINATION !== 'false'; // Default: enabled
     
-    const { origin, destination, date, minPrice, maxPrice, flightClass, page, limit } = req.query;
+    const { origin, destination, date, minPrice, maxPrice, flightClass, page, limit, name } = req.query;
     
     // Pagination parameters
     const pageNum = ENABLE_PAGINATION ? parseInt(page) || 1 : 1;
     const pageSize = ENABLE_PAGINATION ? parseInt(limit) || 20 : 100; // Default 20 when enabled, 100 when disabled
     const skip = (pageNum - 1) * pageSize;
 
-    // Validate required parameters
-    if (!origin || !origin.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Origin is required. Please provide a city name or airport code.'
-      });
-    }
+    // Validate required parameters - but allow admin to fetch all flights without origin/destination
+    // If limit is high (like 1000), assume it's an admin request to fetch all flights
+    const isAdminFetch = limit && parseInt(limit) >= 1000;
+    
+    if (!isAdminFetch) {
+      if (!origin || !origin.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Origin is required. Please provide a city name or airport code.'
+        });
+      }
 
-    if (!destination || !destination.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Destination is required. Please provide a city name or airport code.'
-      });
+      if (!destination || !destination.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Destination is required. Please provide a city name or airport code.'
+        });
+      }
     }
 
     const query = {};
 
-    // City to airport code mapping
-    const cityToAirports = {
-      'new york': ['JFK', 'NYC', 'LGA', 'EWR'],
-      'los angeles': ['LAX'],
-      'san francisco': ['SFO'],
-      'chicago': ['ORD'],
-      'dallas': ['DFW'],
-      'denver': ['DEN'],
-      'seattle': ['SEA'],
-      'miami': ['MIA'],
-      'boston': ['BOS'],
-      'las vegas': ['LAS'],
-      'atlanta': ['ATL'],
-      'phoenix': ['PHX']
-    };
+    // Name search (for admin - search in airline_name field)
+    if (name && name.trim()) {
+      query.airline_name = new RegExp(name.trim(), 'i');
+    }
 
-    // Helper to resolve search term to airport codes
-    const resolveToAirportCodes = (searchTerm) => {
-      if (!searchTerm || !searchTerm.trim()) return null;
-      
-      const trimmed = searchTerm.trim();
-      const normalized = trimmed.toLowerCase().replace(/\s+/g, ' '); // Normalize whitespace
-      
-      // Check if it's an airport code
-      if (/^[A-Z]{3,4}$/i.test(trimmed) && trimmed.length <= 4) {
-        return [trimmed.toUpperCase()];
-      }
-      
-      // Try to match city names - improved matching logic
-      for (const [city, airports] of Object.entries(cityToAirports)) {
-        // Remove spaces for comparison to handle "newyork" vs "new york"
-        const normalizedCity = city.replace(/\s+/g, '').toLowerCase();
-        const normalizedSearch = normalized.replace(/\s+/g, '').toLowerCase();
+    // If admin fetch, skip origin/destination filtering
+    if (!isAdminFetch) {
+      // City to airport code mapping
+      const cityToAirports = {
+        'new york': ['JFK', 'NYC', 'LGA', 'EWR'],
+        'los angeles': ['LAX'],
+        'san francisco': ['SFO'],
+        'chicago': ['ORD'],
+        'dallas': ['DFW'],
+        'denver': ['DEN'],
+        'seattle': ['SEA'],
+        'miami': ['MIA'],
+        'boston': ['BOS'],
+        'las vegas': ['LAS'],
+        'atlanta': ['ATL'],
+        'phoenix': ['PHX']
+      };
+
+      // Helper to resolve search term to airport codes
+      const resolveToAirportCodes = (searchTerm) => {
+        if (!searchTerm || !searchTerm.trim()) return null;
         
-        // Exact match or contains match
-        if (normalizedSearch === normalizedCity || 
-            normalizedSearch.includes(normalizedCity) || 
-            normalizedCity.includes(normalizedSearch)) {
-          console.log(`[Flight Controller] Matched "${trimmed}" to city "${city}" -> airports:`, airports);
-          return airports;
+        const trimmed = searchTerm.trim();
+        const normalized = trimmed.toLowerCase().replace(/\s+/g, ' '); // Normalize whitespace
+        
+        // Check if it's an airport code
+        if (/^[A-Z]{3,4}$/i.test(trimmed) && trimmed.length <= 4) {
+          return [trimmed.toUpperCase()];
         }
-      }
-      
-      console.log(`[Flight Controller] No city match found for "${trimmed}"`);
-      return null;
-    };
+        
+        // Try to match city names - improved matching logic
+        for (const [city, airports] of Object.entries(cityToAirports)) {
+          // Remove spaces for comparison to handle "newyork" vs "new york"
+          const normalizedCity = city.replace(/\s+/g, '').toLowerCase();
+          const normalizedSearch = normalized.replace(/\s+/g, '').toLowerCase();
+          
+          // Exact match or contains match
+          if (normalizedSearch === normalizedCity || 
+              normalizedSearch.includes(normalizedCity) || 
+              normalizedCity.includes(normalizedSearch)) {
+            console.log(`[Flight Controller] Matched "${trimmed}" to city "${city}" -> airports:`, airports);
+            return airports;
+          }
+        }
+        
+        console.log(`[Flight Controller] No city match found for "${trimmed}"`);
+        return null;
+      };
 
-    // Build origin condition
-    const originAirports = resolveToAirportCodes(origin);
+      // Build origin condition
+      const originAirports = resolveToAirportCodes(origin);
     console.log(`[Flight Controller] Origin search term: "${origin}", resolved to airports:`, originAirports);
     if (originAirports && originAirports.length > 0) {
       if (originAirports.length === 1) {
@@ -161,8 +173,9 @@ const searchFlights = async (req, res) => {
         ];
       }
     }
+    } // End of !isAdminFetch block
 
-    if (date && date.trim()) {
+    if (date && date.trim() && !isAdminFetch) {
       // Parse date string - handle both YYYY-MM-DD format and ISO strings
       // Note: YYYY-MM-DD format represents a calendar date (not a specific moment)
       // We interpret it as "any flight departing on this calendar date in UTC"
@@ -789,6 +802,11 @@ const getFlight = async (req, res) => {
 
 const createFlight = async (req, res) => {
   try {
+    // Generate flight_id automatically if not provided
+    if (!req.body.flight_id) {
+      req.body.flight_id = new mongoose.Types.ObjectId().toString().toUpperCase();
+    }
+    
     const flight = new Flight(req.body);
     const savedFlight = await flight.save();
 

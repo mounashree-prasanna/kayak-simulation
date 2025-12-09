@@ -21,7 +21,6 @@ const Host = () => {
     if (!isAuthenticated) {
       navigate('/login')
     } else if (role !== 'admin') {
-      // Host page is now admin-only - redirect to admin analytics
       navigate('/admin/analytics')
     }
   }, [isAuthenticated, role, navigate])
@@ -37,31 +36,26 @@ const Host = () => {
       setLoading(true)
       setError(null)
 
-      // Fetch clicks per page
       const clicksResponse = await api.get('/analytics/clicks-per-page')
       if (clicksResponse.data.success) {
         setClicksPerPage(clicksResponse.data.data || [])
       }
 
-      // Fetch listing clicks
       const listingResponse = await api.get('/analytics/listing-clicks')
       if (listingResponse.data.success) {
         setListingClicks(listingResponse.data.data || [])
       }
 
-      // Fetch least seen sections
       const leastSeenResponse = await api.get('/analytics/least-seen-sections')
       if (leastSeenResponse.data.success) {
         setLeastSeenSections(leastSeenResponse.data.data || [])
       }
 
-      // Fetch reviews (from reviews endpoint)
       const reviewsResponse = await api.get('/reviews')
       if (reviewsResponse.data.success) {
         setReviews(reviewsResponse.data.data || [])
       }
 
-      // Fetch user traces
       const tracesResponse = await api.get('/analytics/user-trace')
       if (tracesResponse.data.success) {
         setUserTraces(tracesResponse.data.data || [])

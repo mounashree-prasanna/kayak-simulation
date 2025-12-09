@@ -18,33 +18,23 @@ def get_openai_client():
     
     if openai_client is None:
         try:
-            # Initialize OpenAI client with ONLY the API key
-            # Some versions have issues with additional parameters like timeout, proxies, etc.
-            # Use the absolute minimum to ensure compatibility
             openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
             print("[OpenAI Config] Client initialized successfully")
         except TypeError as e:
-            # Handle version-specific issues - the error mentions 'proxies' but we're not passing it
-            # This might be an internal httpx/openai version conflict
             error_msg = str(e)
             print(f"[OpenAI Config] TypeError during initialization: {error_msg}")
             
-            # Try to diagnose the issue
             if "proxies" in error_msg:
                 print("[OpenAI Config] Note: 'proxies' error detected - this may be an httpx version issue")
                 print("[OpenAI Config] Attempting workaround...")
                 
-                # Try importing and checking httpx version
                 try:
                     import httpx
                     print(f"[OpenAI Config] httpx version: {httpx.__version__}")
                 except:
                     pass
                 
-                # The error might be coming from httpx internally
-                # Try to work around by ensuring we're not passing any extra args
                 try:
-                    # Force re-import to clear any cached issues
                     import importlib
                     import openai
                     importlib.reload(openai)

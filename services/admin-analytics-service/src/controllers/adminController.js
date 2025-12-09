@@ -16,12 +16,10 @@ const hasPermission = (adminRole, requiredPermission) => {
   return adminPermissions.includes('all') || adminPermissions.includes(requiredPermission);
 };
 
-// Create admin (only Super Admin can do this)
 const createAdmin = async (req, res) => {
   try {
     const { admin_id, first_name, last_name, address, phone_number, email, password, role, reports_and_analytics_managed } = req.body;
 
-    // Validate required fields
     if (!admin_id || !first_name || !last_name || !address || !phone_number || !email || !password || !role) {
       res.status(400).json({
         success: false,
@@ -56,7 +54,6 @@ const createAdmin = async (req, res) => {
       return;
     }
 
-    // Validate password
     if (!password || password.length < 8) {
       res.status(400).json({
         success: false,

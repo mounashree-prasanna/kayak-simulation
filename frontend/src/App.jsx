@@ -29,6 +29,7 @@ import AdminBilling from './pages/admin/AdminBilling'
 import AdminAnalytics from './pages/admin/AdminAnalytics'
 import AdminAdminManagement from './pages/admin/AdminAdminManagement'
 import ProviderAnalytics from './pages/admin/ProviderAnalytics'
+import AdminProviders from './pages/admin/AdminProviders'
 import Host from './pages/Host'
 import TravelAgent from './components/TravelAgent/TravelAgent'
 
@@ -88,6 +89,7 @@ function App() {
             <Route path="/admin/users" element={<AdminUserManagement />} />
             <Route path="/admin/billing" element={<AdminBilling />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
+            <Route path="/admin/providers" element={<AdminProviders />} />
             <Route path="/admin/admins" element={<AdminAdminManagement />} />
             <Route path="/admin/providers/:provider_id" element={<ProviderAnalytics />} />
             <Route path="/host" element={<Host />} />

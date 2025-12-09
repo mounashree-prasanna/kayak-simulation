@@ -25,18 +25,29 @@ const searchCars = async (req, res) => {
     // Feature flag for pagination
     const ENABLE_PAGINATION = process.env.ENABLE_PAGINATION !== 'false'; // Default: enabled
     
-    const { city, pickupDate, dropoffDate, price_min, price_max, car_type, page, limit } = req.query;
+    const { city, pickupDate, dropoffDate, price_min, price_max, car_type, page, limit, name } = req.query;
     
     // Pagination parameters
     const pageNum = ENABLE_PAGINATION ? parseInt(page) || 1 : 1;
     const pageSize = ENABLE_PAGINATION ? parseInt(limit) || 20 : 100; // Default 20 when enabled, 100 when disabled
     const skip = (pageNum - 1) * pageSize;
 
-    const query = {
-      availability_status: 'Available'
-    };
+    // If limit is high (like 1000), assume it's an admin request to fetch all cars
+    const isAdminFetch = limit && parseInt(limit) >= 1000;
 
-    if (city) {
+    const query = {};
+
+    // Only filter by availability_status for regular users, not admin
+    if (!isAdminFetch) {
+      query.availability_status = 'Available';
+    }
+
+    // Name search (for admin - search in model field)
+    if (name && name.trim()) {
+      query.model = new RegExp(name.trim(), 'i');
+    }
+
+    if (city && city.trim()) {
       query.pickup_city = new RegExp(city, 'i');
     }
 
@@ -191,6 +202,11 @@ const getCar = async (req, res) => {
 
 const createCar = async (req, res) => {
   try {
+    // Generate car_id automatically if not provided
+    if (!req.body.car_id) {
+      req.body.car_id = new mongoose.Types.ObjectId().toString();
+    }
+    
     const car = new Car(req.body);
     const savedCar = await car.save();
 

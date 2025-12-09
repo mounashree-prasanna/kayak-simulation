@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JMeter Performance Test Results - Comparison Charts</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 30px;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .summary-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .summary-card h3 {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+        
+        .summary-card .value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+        
+        .chart-section {
+            margin-bottom: 50px;
+        }
+        
+        .chart-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+            font-size: 1.8em;
+        }
+        
+        .chart-container {
+            text-align: center;
+            margin-bottom: 30px;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+        
+        .chart-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 5px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .chart-title {
+            font-size: 1.3em;
+            color: #555;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        .footer {
+            text-align: center;
+            color: #666;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #eee;
+        }
+        
+        .combination-legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            border: 2px solid #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 JMeter Performance Test Results</h1>
+        <p class="subtitle">Comprehensive Comparison Across All Test Combinations</p>
+        
+        <div class="combination-legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #FF6B6B;"></div>
+                <span><strong>Combination 1:</strong> BASE</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #4ECDC4;"></div>
+                <span><strong>Combination 2:</strong> BASE + REDIS</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #45B7D1;"></div>
+                <span><strong>Combination 3:</strong> BASE + REDIS + KAFKA</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #96CEB4;"></div>
+                <span><strong>Combination 4:</strong> ALL OPTIMIZATIONS</span>
+            </div>
+        </div>
+        
+        <div class="summary" id="summary">
+            <!-- Summary cards will be populated by JavaScript -->
+        </div>
+        
+        <div class="chart-section">
+            <h2>📊 Success & Error Metrics</h2>
+            
+            <div class="chart-container">
+                <div class="chart-title">Success Rate Comparison</div>
+                <img src="01_success_rate.png" alt="Success Rate Chart">
+            </div>
+            
+            <div class="chart-container">
+                <div class="chart-title">Error Rate Comparison</div>
+                <img src="02_error_rate.png" alt="Error Rate Chart">
+            </div>
+            
+            <div class="chart-container">
+                <div class="chart-title">Error Breakdown by Type</div>
+                <img src="10_error_breakdown.png" alt="Error Breakdown Chart">
+            </div>
+        </div>
+        
+        <div class="chart-section">
+            <h2>⏱️ Response Time Metrics</h2>
+            
+            <div class="chart-container">
+                <div class="chart-title">Average Response Time</div>
+                <img src="03_avg_response_time.png" alt="Average Response Time Chart">
+            </div>
+            
+            <div class="chart-container">
+                <div class="chart-title">Median Response Time</div>
+                <img src="04_median_response_time.png" alt="Median Response Time Chart">
+            </div>
+            
+            <div class="chart-container">
+                <div class="chart-title">Response Time Percentiles (Average, Median, P95, P99)</div>
+                <img src="09_response_time_percentiles.png" alt="Response Time Percentiles Chart">
+            </div>
+            
+            <div class="chart-container">
+                <div class="chart-title">95th Percentile Response Time</div>
+                <img src="05_p95_response_time.png" alt="P95 Response Time Chart">
+            </div>
+            
+            <div class="chart-container">
+                <div class="chart-title">99th Percentile Response Time</div>
+                <img src="06_p99_response_time.png" alt="P99 Response Time Chart">
+            </div>
+        </div>
+        
+        <div class="chart-section">
+            <h2>📈 Throughput & Volume Metrics</h2>
+            
+            <div class="chart-container">
+                <div class="chart-title">Throughput (Requests per Second)</div>
+                <img src="07_throughput.png" alt="Throughput Chart">
+            </div>
+            
+            <div class="chart-container">
+                <div class="chart-title">Total Requests</div>
+                <img src="08_total_requests.png" alt="Total Requests Chart">
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Generated by JMeter Performance Test Comparison Script</p>
+            <p>For detailed metrics, see <code>summary_report.json</code></p>
+        </div>
+    </div>
+    
+    <script>
+        // Load and display summary from JSON
+        fetch('summary_report.json')
+            .then(response => response.json())
+            .then(data => {
+                const summaryDiv = document.getElementById('summary');
+                const combinations = data.combinations;
+                
+                // Create summary cards
+                combinations.forEach(combo => {
+                    const card = document.createElement('div');
+                    card.className = 'summary-card';
+                    card.innerHTML = `
+                        <h3>${combo.combination.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</h3>
+                        <div class="value">${combo.success_rate.toFixed(2)}%</div>
+                        <div style="margin-top: 10px; font-size: 0.9em;">
+                            <div>Avg Response: ${combo.avg_response_time.toFixed(0)}ms</div>
+                            <div>Throughput: ${combo.throughput.toFixed(1)} req/s</div>
+                        </div>
+                    `;
+                    summaryDiv.appendChild(card);
+                });
+            })
+            .catch(err => {
+                console.log('Could not load summary data:', err);
+            });
+    </script>
+</body>
+</html>
+

@@ -67,7 +67,6 @@ const HotelSearch = () => {
   const { user } = useAppSelector(state => state.auth)
 
   useEffect(() => {
-    // Log page visit for analytics
     const pagePath = '/hotels'
     logPageClick(pagePath, 'hotel-search-page', user?.user_id || user?._id || null)
     
@@ -75,7 +74,6 @@ const HotelSearch = () => {
   }, [searchParams, filters, sortBy])
 
   useEffect(() => {
-    // Update form when URL params change
     setSearchForm({
       city: cityParam || '',
       checkIn: checkInParam ? parseDateFromString(checkInParam) : null,
@@ -136,29 +134,30 @@ const HotelSearch = () => {
       }
       
       setHotels(hotelsData)
-      setCurrentPage(1) // Reset to first page on new search
+      setCurrentPage(1) 
       
-      // Fetch images for each hotel
       const imagesMap = {}
       for (const hotel of hotelsData) {
-        try {
-          // Use hotel_id (string) instead of _id (ObjectId) since images are linked to hotel_id
-          const hotelId = hotel.hotel_id || hotel._id
-          if (!hotelId) continue
-          
-          const imageResponse = await api.get('/images/primary', {
-            params: { entity_type: 'Hotel', entity_id: String(hotelId) }
-          })
-          if (imageResponse.data.success && imageResponse.data.data) {
-            // Store image URL using both _id and hotel_id as keys for lookup
-            const imageUrl = imageResponse.data.data.image_url
-            if (hotel._id) imagesMap[hotel._id] = imageUrl
-            if (hotel.hotel_id) imagesMap[hotel.hotel_id] = imageUrl
-          }
-        } catch (imgErr) {
-          // Image not found, use placeholder - only log if it's not a 404
-          if (imgErr.response?.status !== 404) {
-            console.log(`Error fetching image for hotel ${hotel.hotel_id || hotel._id}:`, imgErr.message)
+        const hotelId = hotel._id || hotel.hotel_id
+        if (!hotelId) continue
+        
+        if (hotel.image_url) {
+          if (hotel._id) imagesMap[hotel._id] = hotel.image_url
+          if (hotel.hotel_id) imagesMap[hotel.hotel_id] = hotel.image_url
+        } else {
+          try {
+            const imageResponse = await api.get('/images/primary', {
+              params: { entity_type: 'Hotel', entity_id: String(hotel.hotel_id || hotel._id) }
+            })
+            if (imageResponse.data.success && imageResponse.data.data) {
+              const imageUrl = imageResponse.data.data.image_url
+              if (hotel._id) imagesMap[hotel._id] = imageUrl
+              if (hotel.hotel_id) imagesMap[hotel.hotel_id] = imageUrl
+            }
+          } catch (imgErr) {
+            if (imgErr.response?.status !== 404) {
+              console.log(`Error fetching image for hotel ${hotel.hotel_id || hotel._id}:`, imgErr.message)
+            }
           }
         }
       }
@@ -349,12 +348,24 @@ const HotelSearch = () => {
                   return paginatedHotels.map((hotel) => {
                   // Use _id as primary key for lookup (since that's what we're using as the map key)
                   const hotelId = hotel._id || hotel.hotel_id
-                  const imageUrl = hotelImages[hotelId]
+                  // Check both the imagesMap and direct image_url field
+                  const imageUrl = hotelImages[hotelId] || hotelImages[hotel._id] || hotelImages[hotel.hotel_id] || hotel.image_url
+                  const handleImageError = (e) => {
+                    e.target.style.display = 'none'
+                    e.target.nextSibling?.style?.display === 'none' && (e.target.nextSibling.style.display = 'flex')
+                  }
                   return (
                   <div key={hotelId} className="result-card hotel-card">
                     <div className="hotel-image">
                       {imageUrl ? (
-                        <img src={imageUrl} alt={hotel.name || hotel.hotel_name} />
+                        <>
+                          <img 
+                            src={imageUrl} 
+                            alt={hotel.name || hotel.hotel_name}
+                            onError={handleImageError}
+                          />
+                          <div className="image-placeholder" style={{ display: 'none' }}>🏨</div>
+                        </>
                       ) : (
                         <div className="image-placeholder">🏨</div>
                       )}

@@ -13,10 +13,8 @@ const MYSQL_CONFIG = {
   keepAliveInitialDelay: 0
 };
 
-// Create connection pool
 const pool = mysql.createPool(MYSQL_CONFIG);
 
-// Test connection
 const connectMySQL = async () => {
   try {
     const connection = await pool.getConnection();
@@ -29,7 +27,6 @@ const connectMySQL = async () => {
   }
 };
 
-// Execute query with connection pool
 const query = async (sql, params = []) => {
   try {
     const [rows] = await pool.execute(sql, params);
@@ -40,7 +37,6 @@ const query = async (sql, params = []) => {
   }
 };
 
-// Execute transaction
 const executeTransaction = async (callback) => {
   const connection = await pool.getConnection();
   try {

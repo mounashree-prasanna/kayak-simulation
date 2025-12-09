@@ -10,9 +10,7 @@ const generateInvoiceNumber = () => {
   return `INV-${year}-${randomNum}`;
 };
 
-// Mock payment processing - in real app, integrate with payment gateway
 const processPayment = async (amount, paymentMethod) => {
-  // Simulate payment processing with 95% success rate
   const success = Math.random() > 0.05;
   
   if (success) {

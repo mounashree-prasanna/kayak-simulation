@@ -13,8 +13,6 @@ const chargeBooking = async (req, res) => {
 
     // Use transaction for ACID compliance
     const result = await executeTransaction(async (connection) => {
-      // Always fetch booking directly from MySQL to get the auto-increment id field
-      // This ensures we have all the data needed for the billing record
       let booking = null;
       try {
         const sql = 'SELECT * FROM bookings WHERE booking_id = ?';
@@ -35,18 +33,14 @@ const chargeBooking = async (req, res) => {
         throw new Error(`Booking is already ${booking.booking_status}`);
       }
 
-      // Use booking.total_price instead of request amount for consistency
-      // If amount is provided, validate it matches booking price (with small tolerance for rounding)
       const bookingPrice = parseFloat(booking.total_price) || 0;
       const requestedAmount = amount ? parseFloat(amount) : bookingPrice;
       
-      // Validate amount matches booking price (allow 1% tolerance for rounding)
       if (Math.abs(requestedAmount - bookingPrice) > bookingPrice * 0.01 && requestedAmount !== bookingPrice) {
         console.warn(`[Billing Service] Amount mismatch: booking.total_price=${bookingPrice}, requested=${requestedAmount}. Using booking price.`);
       }
       const amountToCharge = bookingPrice;
 
-      // Process payment (mock) - use booking price
       const paymentResult = await processPayment(amountToCharge, payment_method);
 
       const billing_id = generateBillingId();
@@ -81,11 +75,8 @@ const chargeBooking = async (req, res) => {
 
       const savedBilling = await BillingRepository.create(billingData, connection);
 
-      // Update booking status directly within the same transaction for ACID compliance
-      // This ensures both billing and booking updates succeed or fail together
       let bookingStatusUpdate;
       if (paymentResult.success) {
-        // Update booking status to Confirmed within transaction
         const updateSql = `UPDATE bookings SET booking_status = 'Confirmed', updated_at = NOW() WHERE booking_id = ?`;
         const [updateResult] = await connection.execute(updateSql, [booking_id]);
         if (updateResult.affectedRows === 0) {
@@ -93,7 +84,6 @@ const chargeBooking = async (req, res) => {
         }
         bookingStatusUpdate = 'Confirmed';
       } else {
-        // Update booking status to PaymentFailed within transaction
         const updateSql = `UPDATE bookings SET booking_status = 'PaymentFailed', updated_at = NOW() WHERE booking_id = ?`;
         const [updateResult] = await connection.execute(updateSql, [booking_id]);
         if (updateResult.affectedRows === 0) {
@@ -109,7 +99,6 @@ const chargeBooking = async (req, res) => {
       };
     });
 
-    // Invalidate booking cache after transaction commits
     try {
       await redisDel(`booking:${booking_id}`);
       await redisDel(`booking:user:${user_id}:all`);
@@ -117,20 +106,15 @@ const chargeBooking = async (req, res) => {
       console.warn('[Billing Service] Failed to invalidate booking cache:', redisError.message);
     }
 
-    // Publish Kafka events (after transaction commits)
-    // Note: The booking service's billingEventHandler will listen to billing_success
-    // and emit booking_confirmed event after processing
     if (result.paymentResult.success) {
       await publishBillingEvent('billing_success', result.billing);
     } else {
       await publishBillingEvent('billing_failed', result.billing);
     }
 
-    // Invalidate relevant caches
     try {
       await redisDel(`billing:${result.billing.billing_id}`);
       await redisDel(`billing:user:${result.billing.user_id}`);
-      // Invalidate monthly stats cache
       const date = new Date(result.billing.transaction_date);
       const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       await redisDel(`billing:user:${result.billing.user_id}:${monthYear}`);
@@ -156,7 +140,6 @@ const getBilling = async (req, res) => {
   try {
     const { billing_id } = req.params;
 
-    // Check Redis cache first
     const cacheKey = `billing:${billing_id}`;
     try {
       const cached = await redisGet(cacheKey);
@@ -169,11 +152,9 @@ const getBilling = async (req, res) => {
         });
       }
     } catch (redisError) {
-      // If Redis fails, continue to MySQL query (graceful degradation)
       console.warn('[Billing Service] Redis cache miss or error, falling back to MySQL:', redisError.message);
     }
 
-    // Cache miss - query MySQL
     const billing = await BillingRepository.findByBillingId(billing_id);
 
     if (!billing) {
@@ -183,11 +164,9 @@ const getBilling = async (req, res) => {
       });
     }
 
-    // Cache the result in Redis with 1 hour TTL
     try {
       await redisSet(cacheKey, JSON.stringify(billing), 3600);
     } catch (redisError) {
-      // Log but don't fail the request if caching fails
       console.warn('[Billing Service] Failed to cache billing:', redisError.message);
     }
 
@@ -208,7 +187,6 @@ const getBillingByBookingId = async (req, res) => {
   try {
     const { booking_id } = req.params;
 
-    // Query MySQL for billing by booking_id
     const billings = await BillingRepository.findByBookingId(booking_id);
 
     if (!billings || billings.length === 0) {
@@ -218,7 +196,6 @@ const getBillingByBookingId = async (req, res) => {
       });
     }
 
-    // Return the most recent billing (first in the sorted list)
     const billing = billings[0];
 
     res.status(200).json({
@@ -248,11 +225,9 @@ const searchBilling = async (req, res) => {
       filters.status = status;
     }
 
-    // Support from/to date range (required format: YYYY-MM-DD)
     if (from && to) {
       filters.startDate = new Date(from);
       filters.endDate = new Date(to);
-      // Set endDate to end of day for proper BETWEEN clause
       filters.endDate.setHours(23, 59, 59, 999);
     } else if (from) {
       filters.startDate = new Date(from);
@@ -261,7 +236,6 @@ const searchBilling = async (req, res) => {
       filters.endDate.setHours(23, 59, 59, 999);
     }
 
-    // Use general search method that supports both user_id and no user_id
     const billings = await BillingRepository.search(filters);
 
     res.status(200).json({

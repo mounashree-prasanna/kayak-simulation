@@ -33,7 +33,6 @@ const AdminBilling = () => {
       
       const params = {}
       if (searchType === 'date' && searchDate) {
-        // HTML5 date input already returns YYYY-MM-DD format, use it directly
         params.date = searchDate
       } else if (searchType === 'month' && searchMonth && searchYear) {
         params.month = searchMonth

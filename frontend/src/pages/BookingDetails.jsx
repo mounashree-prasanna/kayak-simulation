@@ -30,12 +30,10 @@ const BookingDetails = () => {
       const bookingData = response.data.data
       setBooking(bookingData)
       
-      // Fetch listing details if not included in booking response
       if (bookingData && bookingData.reference_id) {
         await fetchListingDetails(bookingData)
       }
       
-      // Always try to fetch billing/invoice details if available
       if (bookingData && bookingData.booking_id) {
         await fetchBillingDetails(bookingData.booking_id || id)
       }
@@ -74,7 +72,6 @@ const BookingDetails = () => {
       }
     } catch (err) {
       console.warn('Failed to fetch listing details:', err.message)
-      // Don't fail the whole page if listing fetch fails
     }
   }
 
@@ -86,18 +83,15 @@ const BookingDetails = () => {
       }
     } catch (err) {
       console.warn('Failed to fetch billing details:', err.message)
-      // Don't fail if billing fetch fails - we'll calculate from booking price
     }
   }
 
   const calculateInvoice = () => {
     if (!booking || !booking.total_price) return null
     
-    // If we have billing data, use that
     if (billing && billing.invoice_details) {
       try {
         let invoice = billing.invoice_details
-        // Parse if it's a string
         if (typeof invoice === 'string') {
           invoice = JSON.parse(invoice)
         }
@@ -115,7 +109,6 @@ const BookingDetails = () => {
       }
     }
     
-    // Calculate from booking price (8% tax)
     const subtotal = parseFloat(booking.total_price) || 0
     const taxRate = 0.08 // 8% tax
     const tax = subtotal * taxRate

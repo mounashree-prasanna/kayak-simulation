@@ -2,11 +2,9 @@ const mongoose = require('mongoose');
 const { get: redisGet, set: redisSet, del: redisDel, delPattern: redisDelPattern } = require('../config/redis');
 const { query: mysqlQuery } = require('../config/mysql');
 
-// Redis TTL configuration
-const REDIS_TTL = parseInt(process.env.REDIS_TTL || '1800'); // 30 minutes default
+const REDIS_TTL = parseInt(process.env.REDIS_TTL || '1800'); 
 
 const Booking = mongoose.model('Booking', new mongoose.Schema({}, { strict: false, collection: 'bookings' }));
-// Note: Billing data is stored in MySQL, not MongoDB
 const Flight = mongoose.model('Flight', new mongoose.Schema({}, { strict: false, collection: 'flights' }));
 const Hotel = mongoose.model('Hotel', new mongoose.Schema({}, { strict: false, collection: 'hotels' }));
 const Car = mongoose.model('Car', new mongoose.Schema({}, { strict: false, collection: 'cars' }));
@@ -16,12 +14,9 @@ const UserTrace = mongoose.model('UserTrace', new mongoose.Schema({}, { strict: 
 const Review = mongoose.model('Review', new mongoose.Schema({}, { strict: false, collection: 'reviews' }));
 const Provider = mongoose.model('Provider', new mongoose.Schema({}, { strict: false, collection: 'providers' }));
 
-// Helper function to get listing IDs for a provider
-// Since provider_id might not exist yet, we'll use provider_name matching
 const getProviderListingIds = async (provider_id, provider_name) => {
   const listingIds = [];
   
-  // Try to find by provider_id first, fallback to provider_name
   if (provider_id) {
     const flights = await Flight.find({ 
       $or: [
@@ -56,7 +51,6 @@ const getProviderListingIds = async (provider_id, provider_name) => {
       if (c._id) listingIds.push(String(c._id));
     });
   } else if (provider_name) {
-    // Fallback to provider_name matching
     const flights = await Flight.find({ airline_name: provider_name }).select('flight_id _id').lean();
     flights.forEach(f => {
       if (f.flight_id) listingIds.push(String(f.flight_id));
@@ -69,7 +63,6 @@ const getProviderListingIds = async (provider_id, provider_name) => {
       if (c._id) listingIds.push(String(c._id));
     });
     
-    // For hotels, match by name pattern
     const hotels = await Hotel.find({ 
       name: { $regex: new RegExp(provider_name, 'i') } 
     }).select('hotel_id _id').lean();
@@ -79,7 +72,6 @@ const getProviderListingIds = async (provider_id, provider_name) => {
     });
   }
   
-  // Remove duplicates and null/undefined values, convert all to strings
   const uniqueListingIds = [...new Set(listingIds.filter(id => id != null).map(id => String(id)))];
   
   console.log(`[Admin Analytics] getProviderListingIds found ${uniqueListingIds.length} unique listing IDs for provider ${provider_id || provider_name}`);
@@ -87,23 +79,34 @@ const getProviderListingIds = async (provider_id, provider_name) => {
   return uniqueListingIds;
 };
 
+const getDateRange = (yearNum, monthNum) => {
+  let startDate;
+  let endDate;
+  if (monthNum && monthNum >= 1 && monthNum <= 12) {
+    startDate = new Date(yearNum, monthNum - 1, 1);
+    endDate = new Date(yearNum, monthNum, 1);
+  } else {
+    startDate = new Date(yearNum, 0, 1);
+    endDate = new Date(yearNum + 1, 0, 1);
+  }
+  const startDateStr = startDate.toISOString().split('T')[0];
+  const endDateStr = endDate.toISOString().split('T')[0];
+  return { startDate, endDate, startDateStr, endDateStr };
+};
+
 const getTopProperties = async (req, res) => {
   try {
-    // Feature flag for pagination
-    const ENABLE_PAGINATION = process.env.ENABLE_PAGINATION !== 'false'; // Default: enabled
+    const ENABLE_PAGINATION = process.env.ENABLE_PAGINATION !== 'false'; 
     
     const { year, page, limit } = req.query;
     const yearNum = year ? Number(year) : new Date().getFullYear();
     
-    // Pagination parameters
     const pageNum = ENABLE_PAGINATION ? parseInt(page) || 1 : 1;
-    const pageSize = ENABLE_PAGINATION ? parseInt(limit) || 20 : 10; // Default 20 when enabled, 10 when disabled
+    const pageSize = ENABLE_PAGINATION ? parseInt(limit) || 20 : 10; 
     const skip = (pageNum - 1) * pageSize;
 
-    // Build cache key
     const cacheKey = `analytics:top-properties:${yearNum}:${pageNum}:${pageSize}`;
 
-    // Check Redis cache first (cache-aside pattern)
     try {
       const cached = await redisGet(cacheKey);
       if (cached) {
@@ -124,7 +127,6 @@ const getTopProperties = async (req, res) => {
     const startDateStr = startDate.toISOString().split('T')[0];
     const endDateStr = endDate.toISOString().split('T')[0];
 
-    // Query MySQL for billing and booking data
     const sql = `
       SELECT 
         b.booking_type,
@@ -148,7 +150,6 @@ const getTopProperties = async (req, res) => {
     
     console.log('[Admin Analytics] getTopProperties result count:', result.length);
     
-    // Get total count for pagination
     let totalCount = result.length;
     let totalPages = 1;
     if (ENABLE_PAGINATION) {
@@ -165,7 +166,6 @@ const getTopProperties = async (req, res) => {
       totalPages = Math.ceil(totalCount / pageSize);
     }
     
-    // Transform result to match expected format
     const transformedResult = result.map(row => ({
       property_type: row.booking_type,
       property_id: row.reference_id,
@@ -190,7 +190,6 @@ const getTopProperties = async (req, res) => {
       data: transformedResult
     };
 
-    // Cache the result in Redis with TTL
     try {
       await redisSet(cacheKey, JSON.stringify(response), REDIS_TTL);
       console.log(`[Admin Analytics] Cached top properties: ${cacheKey}`);
@@ -219,10 +218,8 @@ const getCityRevenue = async (req, res) => {
     const { year, city } = req.query;
     const yearNum = year ? Number(year) : new Date().getFullYear();
 
-    // Build cache key
     const cacheKey = `analytics:city-revenue:${city || 'all'}:${yearNum}`;
 
-    // Check Redis cache first (cache-aside pattern)
     try {
       const cached = await redisGet(cacheKey);
       if (cached) {
@@ -243,7 +240,6 @@ const getCityRevenue = async (req, res) => {
     const startDateStr = startDate.toISOString().split('T')[0];
     const endDateStr = endDate.toISOString().split('T')[0];
 
-    // Query MySQL for billing and booking data
     const sql = `
       SELECT 
         b.booking_type,
@@ -272,17 +268,26 @@ const getCityRevenue = async (req, res) => {
         let city = null;
         
         if (row.booking_type === 'Hotel') {
-          const hotel = await Hotel.findOne({ hotel_id: row.reference_id }).lean();
+          const hotel = await Hotel.findOne({ 
+            $or: [
+              { hotel_id: row.reference_id },
+              { _id: row.reference_id }
+            ]
+          }).lean();
           if (hotel && hotel.address && hotel.address.city) {
             city = hotel.address.city;
           }
         } else if (row.booking_type === 'Car') {
-          const car = await Car.findOne({ car_id: row.reference_id }).lean();
+          const car = await Car.findOne({ 
+            $or: [
+              { car_id: row.reference_id },
+              { _id: row.reference_id }
+            ]
+          }).lean();
           if (car && car.pickup_city) {
             city = car.pickup_city;
           }
         }
-        // Flights don't have city revenue in the same way, skip them
         
         if (city) {
           const revenue = parseFloat(row.total_amount_paid) || 0;
@@ -294,18 +299,16 @@ const getCityRevenue = async (req, res) => {
         }
       } catch (error) {
         console.error(`[Admin Analytics] Error processing city revenue for ${row.reference_id}:`, error.message);
-        // Continue processing other rows
       }
     }
     
     console.log('[Admin Analytics] getCityRevenue city map size:', cityRevenueMap.size);
     
-    // Convert map to array and sort
     const result = Array.from(cityRevenueMap.entries())
       .map(([city, total_revenue]) => ({
         city,
         total_revenue,
-        transaction_count: 0 // We don't track this separately now
+        transaction_count: 0 
       }))
       .sort((a, b) => b.total_revenue - a.total_revenue);
 
@@ -322,7 +325,6 @@ const getCityRevenue = async (req, res) => {
       dataLength: response.data?.length || 0
     });
 
-    // Cache the result in Redis with TTL
     try {
       await redisSet(cacheKey, JSON.stringify(response), REDIS_TTL);
       console.log(`[Admin Analytics] Cached city revenue: ${cacheKey}`);
@@ -343,13 +345,11 @@ const getCityRevenue = async (req, res) => {
 const getTopProviders = async (req, res) => {
   try {
     const { month, year } = req.query;
-    const monthNum = month ? Number(month) : new Date().getMonth() + 1;
     const yearNum = year ? Number(year) : new Date().getFullYear();
+    const monthNum = month ? Number(month) : null; // optional
 
-    // Build cache key
-    const cacheKey = `analytics:top-providers:${yearNum}:${monthNum}`;
+    const cacheKey = `analytics:top-providers:${yearNum}:${monthNum || 'all'}`;
 
-    // Check Redis cache first (cache-aside pattern)
     try {
       const cached = await redisGet(cacheKey);
       if (cached) {
@@ -365,12 +365,8 @@ const getTopProviders = async (req, res) => {
       console.warn('[Admin Analytics] Redis cache miss or error, falling back to MongoDB:', redisError.message);
     }
 
-    const startDate = new Date(yearNum, monthNum - 1, 1);
-    const endDate = new Date(yearNum, monthNum, 1);
-    const startDateStr = startDate.toISOString().split('T')[0];
-    const endDateStr = endDate.toISOString().split('T')[0];
+    const { startDateStr, endDateStr } = getDateRange(yearNum, monthNum);
 
-    // Query MySQL for billing and booking data
     const sql = `
       SELECT 
         b.booking_type,
@@ -390,8 +386,6 @@ const getTopProviders = async (req, res) => {
     
     console.log('[Admin Analytics] getTopProviders billing data count:', billingData.length);
     
-    // Get provider information from MongoDB for each booking
-    // Use models defined at top of file (Flight, Hotel, Car)
     const providerMap = new Map();
     
     for (const row of billingData) {
@@ -400,21 +394,35 @@ const getTopProviders = async (req, res) => {
         let provider_id = null;
         
         if (row.booking_type === 'Flight') {
-          const flight = await Flight.findOne({ flight_id: row.reference_id }).lean();
+          const flight = await Flight.findOne({ 
+            $or: [
+              { flight_id: row.reference_id },
+              { _id: row.reference_id }
+            ]
+          }).lean();
           if (flight) {
             provider_name = flight.airline_name;
             provider_id = flight.provider_id || null;
           }
         } else if (row.booking_type === 'Car') {
-          const car = await Car.findOne({ car_id: row.reference_id }).lean();
+          const car = await Car.findOne({ 
+            $or: [
+              { car_id: row.reference_id },
+              { _id: row.reference_id }
+            ]
+          }).lean();
           if (car) {
             provider_name = car.provider_name;
             provider_id = car.provider_id || null;
           }
         } else if (row.booking_type === 'Hotel') {
-          const hotel = await Hotel.findOne({ hotel_id: row.reference_id }).lean();
+          const hotel = await Hotel.findOne({ 
+            $or: [
+              { hotel_id: row.reference_id },
+              { _id: row.reference_id }
+            ]
+          }).lean();
           if (hotel) {
-            // Try to get provider name from Provider collection if provider_id exists
             if (hotel.provider_id) {
               const provider = await Provider.findOne({ provider_id: hotel.provider_id }).lean();
               provider_name = provider ? provider.provider_name : 'Hotel Chain';
@@ -448,13 +456,11 @@ const getTopProviders = async (req, res) => {
         }
       } catch (error) {
         console.error(`[Admin Analytics] Error processing provider for ${row.reference_id}:`, error.message);
-        // Continue processing other rows
       }
     }
     
     console.log('[Admin Analytics] getTopProviders provider map size:', providerMap.size);
     
-    // Convert map to array, sort, and limit to top 10
     const result = Array.from(providerMap.values())
       .sort((a, b) => b.total_revenue - a.total_revenue)
       .slice(0, 10);
@@ -473,7 +479,6 @@ const getTopProviders = async (req, res) => {
       dataLength: response.data?.length || 0
     });
 
-    // Cache the result in Redis with TTL
     try {
       await redisSet(cacheKey, JSON.stringify(response), REDIS_TTL);
       console.log(`[Admin Analytics] Cached top providers: ${cacheKey}`);
@@ -789,7 +794,7 @@ const getUserTrace = async (req, res) => {
 const getProviderClicksPerPage = async (req, res) => {
   try {
     const { provider_id } = req.params;
-    const { provider_name } = req.query;
+    let { provider_name } = req.query;
     
     if (!provider_id && !provider_name) {
       return res.status(400).json({
@@ -854,9 +859,15 @@ const getProviderClicksPerPage = async (req, res) => {
     
     // Match detail pages that contain listing IDs (e.g., /hotels/123, /flights/456)
     if (listingIds.length > 0) {
-      const escapedListingIds = listingIds.map(id => id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-      const listingIdPattern = new RegExp(`(${escapedListingIds.join('|')})`, 'i');
-      matchConditions.push({ page: { $regex: listingIdPattern } });
+      // Avoid overly large regex patterns
+      const MAX_IDS_FOR_REGEX = 300;
+      const trimmedIds = listingIds.slice(0, MAX_IDS_FOR_REGEX);
+      const escapedListingIds = trimmedIds.map(id => id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      const regexString = `(${escapedListingIds.join('|')})`;
+      if (regexString.length < 5000) {
+        const listingIdPattern = new RegExp(regexString, 'i');
+        matchConditions.push({ page: { $regex: listingIdPattern } });
+      }
     }
     
     // Match search pages based on provider's listing types
@@ -929,7 +940,7 @@ const getProviderListingClicks = async (req, res) => {
   try {
     console.log(`[Admin Analytics] getProviderListingClicks - FUNCTION CALLED`);
     const { provider_id } = req.params;
-    const { provider_name } = req.query;
+    let { provider_name } = req.query;
     
     console.log(`[Admin Analytics] getProviderListingClicks - Received params: provider_id="${provider_id}", provider_name="${provider_name}"`);
     
@@ -1102,7 +1113,7 @@ const getProviderListingClicks = async (req, res) => {
 const getProviderLeastSeenSections = async (req, res) => {
   try {
     const { provider_id } = req.params;
-    const { provider_name } = req.query;
+    let { provider_name } = req.query;
     
     if (!provider_id && !provider_name) {
       return res.status(400).json({
@@ -1134,13 +1145,21 @@ const getProviderLeastSeenSections = async (req, res) => {
       });
     }
 
+    const MAX_REGEX_IDS = 300;
+    const escapedIds = listingIds.slice(0, MAX_REGEX_IDS).map(id =>
+      id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    );
+    const regexString = escapedIds.join('|');
+    const matchOr = [];
+    if (regexString && regexString.length < 5000) {
+      matchOr.push({ page: { $regex: new RegExp(regexString, 'i') } });
+    }
+    matchOr.push({ listing_id: { $in: listingIds } });
+
     const result = await PageClickLog.aggregate([
       {
         $match: {
-          $or: [
-            { page: { $regex: new RegExp(listingIds.join('|'), 'i') } },
-            { listing_id: { $in: listingIds } }
-          ]
+          $or: matchOr
         }
       },
       {
@@ -1182,7 +1201,7 @@ const getProviderLeastSeenSections = async (req, res) => {
 const getProviderReviews = async (req, res) => {
   try {
     const { provider_id } = req.params;
-    const { provider_name } = req.query;
+    let { provider_name } = req.query;
     
     if (!provider_id && !provider_name) {
       return res.status(400).json({
@@ -1323,6 +1342,255 @@ const getProviderUserTraces = async (req, res) => {
   }
 };
 
+// Get all providers grouped by type
+const getAllProviders = async (req, res) => {
+  try {
+    const providers = await Provider.find({}).lean();
+    const grouped = {
+      flight: [],
+      hotel: [],
+      car: []
+    };
+    providers.forEach(p => {
+      if (p.provider_type && grouped[p.provider_type]) {
+        grouped[p.provider_type].push({
+          provider_id: p.provider_id,
+          provider_name: p.provider_name,
+          provider_type: p.provider_type
+        });
+      }
+    });
+    res.status(200).json({
+      success: true,
+      count: providers.length,
+      data: grouped
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch providers'
+    });
+  }
+};
+
+// Helper to resolve provider identity (id/name)
+const resolveProviderIdentity = async (provider_id, provider_name) => {
+  let resolvedId = provider_id || null;
+  let resolvedName = provider_name || null;
+
+  if (provider_id) {
+    const provider = await Provider.findOne({ provider_id }).lean();
+    if (provider) {
+      resolvedId = provider.provider_id;
+      resolvedName = provider.provider_name || resolvedName;
+    }
+  }
+  if (!resolvedId && provider_name) {
+    const provider = await Provider.findOne({
+      provider_name: { $regex: new RegExp(`^${provider_name}$`, 'i') }
+    }).lean();
+    if (provider) {
+      resolvedId = provider.provider_id;
+      resolvedName = provider.provider_name;
+    }
+  }
+  return { resolvedId, resolvedName };
+};
+
+// Provider total revenue (yearly or monthly)
+const getProviderRevenue = async (req, res) => {
+  try {
+    const { provider_id } = req.params;
+    const { provider_name, month, year } = req.query;
+    if (!provider_id && !provider_name) {
+      return res.status(400).json({
+        success: false,
+        error: 'Provider ID or Provider Name is required'
+      });
+    }
+
+    const yearNum = year ? Number(year) : new Date().getFullYear();
+    const monthNum = month ? Number(month) : null;
+    const { startDateStr, endDateStr } = getDateRange(yearNum, monthNum);
+
+    const { resolvedId, resolvedName } = await resolveProviderIdentity(provider_id, provider_name);
+    const listingIds = await getProviderListingIds(resolvedId || provider_id, resolvedName || provider_name);
+    if (listingIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        provider_id: resolvedId || provider_id || null,
+        provider_name: resolvedName || provider_name || null,
+        year: yearNum,
+        month: monthNum,
+        total_revenue: 0,
+        booking_count: 0
+      });
+    }
+
+    // Fetch billing + booking data for date range
+    const sql = `
+      SELECT 
+        b.booking_type,
+        b.reference_id,
+        bill.total_amount_paid
+      FROM billings bill
+      INNER JOIN bookings b ON bill.booking_id = b.booking_id
+      WHERE bill.transaction_date >= ? 
+        AND bill.transaction_date < ?
+        AND bill.transaction_status = 'Success'
+    `;
+    const billingData = await mysqlQuery(sql, [startDateStr, endDateStr]);
+
+    const listingSet = new Set(listingIds.map(String));
+    let totalRevenue = 0;
+    let bookingCount = 0;
+
+    for (const row of billingData) {
+      if (listingSet.has(String(row.reference_id))) {
+        totalRevenue += parseFloat(row.total_amount_paid) || 0;
+        bookingCount += 1;
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      provider_id: resolvedId || provider_id || null,
+      provider_name: resolvedName || provider_name || null,
+      year: yearNum,
+      month: monthNum,
+      total_revenue: totalRevenue,
+      booking_count: bookingCount
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch provider revenue'
+    });
+  }
+};
+
+// Provider top listings by revenue (top 5)
+const getProviderTopListings = async (req, res) => {
+  try {
+    const { provider_id } = req.params;
+    const { provider_name, month, year } = req.query;
+    if (!provider_id && !provider_name) {
+      return res.status(400).json({
+        success: false,
+        error: 'Provider ID or Provider Name is required'
+      });
+    }
+
+    const yearNum = year ? Number(year) : new Date().getFullYear();
+    const monthNum = month ? Number(month) : null;
+    const { startDateStr, endDateStr } = getDateRange(yearNum, monthNum);
+
+    const { resolvedId, resolvedName } = await resolveProviderIdentity(provider_id, provider_name);
+    const listingIds = await getProviderListingIds(resolvedId || provider_id, resolvedName || provider_name);
+    if (listingIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        provider_id: resolvedId || provider_id || null,
+        provider_name: resolvedName || provider_name || null,
+        year: yearNum,
+        month: monthNum,
+        count: 0,
+        data: [],
+        message: 'No listings found for this provider'
+      });
+    }
+
+    // Fetch billing + booking data for date range
+    const sql = `
+      SELECT 
+        b.booking_type,
+        b.reference_id,
+        bill.total_amount_paid
+      FROM billings bill
+      INNER JOIN bookings b ON bill.booking_id = b.booking_id
+      WHERE bill.transaction_date >= ? 
+        AND bill.transaction_date < ?
+        AND bill.transaction_status = 'Success'
+    `;
+    const billingData = await mysqlQuery(sql, [startDateStr, endDateStr]);
+
+    const listingSet = new Set(listingIds.map(String));
+    const listingMap = new Map();
+
+    for (const row of billingData) {
+      const refId = String(row.reference_id);
+      if (listingSet.has(refId)) {
+        const revenue = parseFloat(row.total_amount_paid) || 0;
+        if (listingMap.has(refId)) {
+          const existing = listingMap.get(refId);
+          existing.total_revenue += revenue;
+          existing.booking_count += 1;
+        } else {
+          listingMap.set(refId, {
+            listing_id: refId,
+            listing_type: row.booking_type,
+            total_revenue: revenue,
+            booking_count: 1
+          });
+        }
+      }
+    }
+
+    let result = Array.from(listingMap.values())
+      .sort((a, b) => b.total_revenue - a.total_revenue)
+      .slice(0, 5);
+
+    // Enrich with listing names
+    const withNames = [];
+    for (const item of result) {
+      let listing_name = item.listing_id;
+      try {
+        if (item.listing_type === 'Flight') {
+          const flight = await Flight.findOne({
+            $or: [{ flight_id: item.listing_id }, { _id: item.listing_id }]
+          }).lean();
+          if (flight && flight.airline_name) {
+            listing_name = flight.airline_name;
+          }
+        } else if (item.listing_type === 'Hotel') {
+          const hotel = await Hotel.findOne({
+            $or: [{ hotel_id: item.listing_id }, { _id: item.listing_id }]
+          }).lean();
+          if (hotel && hotel.name) {
+            listing_name = hotel.name;
+          }
+        } else if (item.listing_type === 'Car') {
+          const car = await Car.findOne({
+            $or: [{ car_id: item.listing_id }, { _id: item.listing_id }]
+          }).lean();
+          if (car && (car.model || car.provider_name)) {
+            listing_name = car.model || car.provider_name;
+          }
+        }
+      } catch (lookupErr) {
+        // swallow and keep fallback
+      }
+      withNames.push({ ...item, listing_name });
+    }
+    result = withNames;
+
+    res.status(200).json({
+      success: true,
+      provider_id: resolvedId || provider_id || null,
+      provider_name: resolvedName || provider_name || null,
+      year: yearNum,
+      month: monthNum,
+      count: result.length,
+      data: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch provider top listings'
+    });
+  }
+};
+
 module.exports = {
   getTopProperties,
   getCityRevenue,
@@ -1336,6 +1604,9 @@ module.exports = {
   getProviderListingClicks,
   getProviderLeastSeenSections,
   getProviderReviews,
-  getProviderUserTraces
+  getProviderUserTraces,
+  getAllProviders,
+  getProviderRevenue,
+  getProviderTopListings
 };
 

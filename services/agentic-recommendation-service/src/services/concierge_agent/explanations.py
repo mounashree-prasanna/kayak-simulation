@@ -42,7 +42,6 @@ Generate a concise "why this" explanation (max 25 words) using ONLY factual meta
             )
             
             explanation = response.choices[0].message.content.strip()
-            # Ensure max 25 words
             words = explanation.split()
             if len(words) > 25:
                 explanation = " ".join(words[:25])
@@ -80,7 +79,7 @@ Generate a concise "why this" explanation (max 25 words) using ONLY factual meta
         
         try:
             warnings_data = []
-            if bundle.flight.price < 100:  # Very cheap might indicate restrictions
+            if bundle.flight.price < 100:  
                 warnings_data.append("Flight may have restrictions")
             if not bundle.hotel.amenities.get("refundable"):
                 warnings_data.append("Non-refundable hotel")

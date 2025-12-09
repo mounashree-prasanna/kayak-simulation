@@ -7,6 +7,7 @@ from typing import List, Dict
 import json
 
 from src.database import init_db
+from src.database_sqlite import init_db as init_sqlite_db
 from src.routes.bundles import router as bundles_router
 from src.routes.deals import router as deals_router
 from src.routes.intent import router as intent_router
@@ -51,9 +52,10 @@ offer_tagger = None
 async def startup_event():
     global kafka_consumer_service, normalization_stage, deal_detector, offer_tagger
     
-    # Initialize database
-    await init_db()
-    print("[Recommendation Service] Database initialized")
+    # Initialize databases
+    await init_db()  # MongoDB
+    init_sqlite_db()  # SQLite (synchronous)
+    print("[Recommendation Service] Databases initialized")
     
     # Start pipeline stages as background tasks
     try:

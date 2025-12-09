@@ -28,8 +28,6 @@ const TravelAgent = () => {
   }, [messages])
 
   useEffect(() => {
-    // WebSocket connection disabled - not needed for basic functionality
-    // Real-time updates can be added later if needed
     return () => {
       if (wsRef.current) {
         wsRef.current.close()
@@ -55,25 +53,21 @@ const TravelAgent = () => {
     setLoading(true)
 
     try {
-      // Step 1: Parse intent
       const intentResponse = await api.post('/intent', {
         query: userMessage,
         conversation_history: conversationHistory
       })
 
-      // Check response structure
       if (!intentResponse.data || !intentResponse.data.intent) {
         throw new Error('Invalid response format from intent service')
       }
 
       const intent = intentResponse.data.intent
 
-      // Update conversation history BEFORE checking fields
       setConversationHistory(prev => [...prev, 
         { role: 'user', content: userMessage }
       ])
 
-      // If needs clarification, ask the question
       if (intent.needs_clarification && intent.clarification_question) {
         addMessage('agent', intent.clarification_question)
         setConversationHistory(prev => {
@@ -85,7 +79,6 @@ const TravelAgent = () => {
         return
       }
 
-      // Check if we have required fields - be more flexible
       if (!intent.destination) {
         const msg = "I need to know where you'd like to go! Please tell me your destination (e.g., 'I want to go to Paris' or 'I want to travel to NYC')."
         addMessage('agent', msg)
@@ -98,7 +91,6 @@ const TravelAgent = () => {
         return
       }
 
-      // If origin is missing, ask for it
       if (!intent.origin) {
         const msg = `Great! You want to go to ${intent.destination}. Where will you be traveling from? (e.g., 'from New York' or 'from Los Angeles')`
         addMessage('agent', msg)
@@ -111,7 +103,6 @@ const TravelAgent = () => {
         return
       }
 
-      // If dates are missing, ask for them
       if (!intent.check_in || !intent.check_out) {
         const msg = `Perfect! ${intent.origin} to ${intent.destination}. When would you like to travel? Please provide check-in and check-out dates (e.g., 'March 15-20' or 'from March 1 to March 5').`
         addMessage('agent', msg)
@@ -124,8 +115,6 @@ const TravelAgent = () => {
         return
       }
 
-      // Step 2: Get bundles
-      // Convert dates to ISO strings
       const checkinDate = new Date(intent.check_in)
       const checkoutDate = new Date(intent.check_out)
       
@@ -142,7 +131,6 @@ const TravelAgent = () => {
         }
       })
 
-      // Initialize responseText variable
       let responseText = "I couldn't find any bundles."
 
       if (bundlesResponse.data.success && bundlesResponse.data.bundles.length > 0) {
@@ -166,7 +154,6 @@ const TravelAgent = () => {
         addMessage('agent', noBundlesMessage)
       }
 
-      // Update conversation history
       setConversationHistory(prev => [...prev, 
         { role: 'user', content: userMessage },
         { role: 'assistant', content: responseText }
@@ -175,11 +162,9 @@ const TravelAgent = () => {
     } catch (error) {
       console.error('Agent error:', error)
       
-      // Provide more helpful error messages
       let errorMessage = "Sorry, I encountered an error. "
       
       if (error.response) {
-        // Server responded with error
         const status = error.response.status
         const data = error.response.data
         
@@ -193,10 +178,8 @@ const TravelAgent = () => {
           errorMessage += `Server error (${status}). Please try again.`
         }
       } else if (error.request) {
-        // Request was made but no response received
         errorMessage += "Unable to connect to the server. Please check if the backend services are running."
       } else if (error.message) {
-        // Error setting up the request
         if (error.message.includes('Network Error') || error.message.includes('timeout')) {
           errorMessage += "Network connection failed. Please check your internet connection and ensure services are running."
         } else {

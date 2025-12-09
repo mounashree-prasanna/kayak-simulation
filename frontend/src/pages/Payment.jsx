@@ -23,6 +23,8 @@ const Payment = () => {
     cvv: '',
     paymentMethod: 'Credit Card'
   })
+  const [useSavedPayment, setUseSavedPayment] = useState(false)
+  const [savedPaymentDetails, setSavedPaymentDetails] = useState(null)
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -30,7 +32,36 @@ const Payment = () => {
       return
     }
     fetchBooking()
-  }, [bookingId, isAuthenticated, navigate])
+    fetchUserPaymentDetails()
+  }, [bookingId, isAuthenticated, navigate, user])
+
+  const fetchUserPaymentDetails = async () => {
+    if (!user?.user_id) return
+    
+    try {
+      const response = await api.get(`/users/${user.user_id}`)
+      if (response.data.success && response.data.data?.payment_details) {
+        setSavedPaymentDetails(response.data.data.payment_details)
+        // Pre-populate form if payment details exist
+        if (response.data.data.payment_details) {
+          const payment = response.data.data.payment_details
+          const expiryMonth = payment.expiry_month?.toString().padStart(2, '0') || ''
+          const expiryYear = payment.expiry_year?.toString().slice(-2) || ''
+          
+          setPaymentData(prev => ({
+            ...prev,
+            cardNumber: payment.masked_number || '',
+            cardholderName: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+            expiryDate: expiryMonth && expiryYear ? `${expiryMonth}/${expiryYear}` : '',
+            paymentMethod: payment.card_type || 'Credit Card'
+          }))
+          setUseSavedPayment(true)
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to fetch user payment details:', error)
+    }
+  }
 
   const fetchBooking = async () => {
     try {
@@ -142,9 +173,16 @@ const Payment = () => {
   }
 
   const validateForm = () => {
-    if (!paymentData.cardNumber.replace(/\s/g, '').match(/^\d{13,19}$/)) {
-      return 'Please enter a valid card number (13-19 digits)'
+    // Check if using saved payment (masked number)
+    const isMaskedNumber = paymentData.cardNumber.includes('*')
+    
+    if (!isMaskedNumber) {
+      // For new card numbers, validate format
+      if (!paymentData.cardNumber.replace(/\s/g, '').match(/^\d{13,19}$/)) {
+        return 'Please enter a valid card number (13-19 digits)'
+      }
     }
+    
     if (!paymentData.cardholderName.trim()) {
       return 'Please enter cardholder name'
     }
@@ -238,6 +276,50 @@ const Payment = () => {
           <div className="payment-content">
             <div className="payment-form-section">
               <h2>Payment Information</h2>
+              
+              {savedPaymentDetails && (
+                <div className="saved-payment-option">
+                  <label className="saved-payment-toggle">
+                    <input
+                      type="checkbox"
+                      checked={useSavedPayment}
+                      onChange={(e) => {
+                        setUseSavedPayment(e.target.checked)
+                        if (!e.target.checked) {
+                          // Clear form when unchecking
+                          setPaymentData({
+                            cardNumber: '',
+                            cardholderName: '',
+                            expiryDate: '',
+                            cvv: '',
+                            paymentMethod: 'Credit Card'
+                          })
+                        } else {
+                          // Restore saved payment when checking
+                          const expiryMonth = savedPaymentDetails.expiry_month?.toString().padStart(2, '0') || ''
+                          const expiryYear = savedPaymentDetails.expiry_year?.toString().slice(-2) || ''
+                          setPaymentData(prev => ({
+                            ...prev,
+                            cardNumber: savedPaymentDetails.masked_number || '',
+                            cardholderName: `${user?.first_name || ''} ${user?.last_name || ''}`.trim(),
+                            expiryDate: expiryMonth && expiryYear ? `${expiryMonth}/${expiryYear}` : '',
+                            paymentMethod: savedPaymentDetails.card_type || 'Credit Card'
+                          }))
+                        }
+                      }}
+                    />
+                    <span>Use saved payment method</span>
+                  </label>
+                  {useSavedPayment && (
+                    <div className="saved-payment-display">
+                      <p><strong>Card:</strong> {savedPaymentDetails.masked_number}</p>
+                      <p><strong>Type:</strong> {savedPaymentDetails.card_type}</p>
+                      <p><strong>Expiry:</strong> {savedPaymentDetails.expiry_month?.toString().padStart(2, '0')}/{savedPaymentDetails.expiry_year?.toString().slice(-2)}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <form onSubmit={handleSubmit} className="payment-form">
                 <div className="form-group">
                   <label>Card Number</label>
@@ -249,6 +331,7 @@ const Payment = () => {
                     placeholder="1234 5678 9012 3456"
                     maxLength="19"
                     required
+                    disabled={useSavedPayment && savedPaymentDetails}
                   />
                 </div>
 
@@ -261,6 +344,7 @@ const Payment = () => {
                     onChange={handleInputChange}
                     placeholder="John Doe"
                     required
+                    disabled={useSavedPayment && savedPaymentDetails}
                   />
                 </div>
 
@@ -275,6 +359,7 @@ const Payment = () => {
                       placeholder="MM/YY"
                       maxLength="5"
                       required
+                      disabled={useSavedPayment && savedPaymentDetails}
                     />
                   </div>
 
@@ -299,6 +384,7 @@ const Payment = () => {
                     value={paymentData.paymentMethod}
                     onChange={handleInputChange}
                     required
+                    disabled={useSavedPayment && savedPaymentDetails}
                   >
                     <option value="Credit Card">Credit Card</option>
                     <option value="Debit Card">Debit Card</option>

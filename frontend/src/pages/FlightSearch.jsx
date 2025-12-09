@@ -26,10 +26,8 @@ const FlightSearch = () => {
   const flightClassParam = searchParams.get('flightClass') || 'economy'
   const returnDateParam = searchParams.get('returnDate')
 
-  // Helper to parse date from YYYY-MM-DD string without timezone issues
   const parseDateFromString = (dateString) => {
     if (!dateString) return null
-    // Parse YYYY-MM-DD format as local date (not UTC)
     const [year, month, day] = dateString.split('-').map(Number)
     if (year && month && day) {
       return new Date(year, month - 1, day)
@@ -37,7 +35,6 @@ const FlightSearch = () => {
     return null
   }
 
-  // Search form state
   const [searchForm, setSearchForm] = useState({
     origin: originParam || '',
     destination: destinationParam || '',
@@ -57,24 +54,19 @@ const FlightSearch = () => {
   const { user } = useAppSelector(state => state.auth)
 
   useEffect(() => {
-    // Log page visit for analytics
     const pagePath = '/flights'
     logPageClick(pagePath, 'flight-search-page', user?.user_id || user?._id || null)
     
-    // Only fetch flights if we have required search parameters
     if (originParam && destinationParam) {
       fetchFlights()
     } else {
-      // If no search params, don't show error, just show empty state
       setLoading(false)
       setFlights([])
       setError(null)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
   useEffect(() => {
-    // Update form when URL params change
     setSearchForm({
       origin: originParam || '',
       destination: destinationParam || '',
@@ -93,7 +85,6 @@ const FlightSearch = () => {
     }))
   }
 
-  // Helper function to format date as YYYY-MM-DD using local timezone (not UTC)
   const formatDateLocal = (date) => {
     if (!date) return null
     const year = date.getFullYear()
@@ -140,10 +131,8 @@ const FlightSearch = () => {
       if (origin && origin.trim()) params.origin = origin.trim()
       if (destination && destination.trim()) params.destination = destination.trim()
       if (date) {
-        // Ensure date is in YYYY-MM-DD format using local timezone
         const dateObj = date instanceof Date ? date : new Date(date)
         if (!isNaN(dateObj.getTime())) {
-          // Use local date components, not UTC, to avoid timezone shifts
           const year = dateObj.getFullYear()
           const month = String(dateObj.getMonth() + 1).padStart(2, '0')
           const day = String(dateObj.getDate()).padStart(2, '0')
@@ -160,7 +149,6 @@ const FlightSearch = () => {
       
       console.log(`[FlightSearch] Received ${flightsData.length} flights from API`)
       
-      // Sort flights - handle both field name variations
       if (sortBy === 'price') {
         flightsData.sort((a, b) => (a.ticket_price || 0) - (b.ticket_price || 0))
       } else if (sortBy === 'duration') {
@@ -182,9 +170,8 @@ const FlightSearch = () => {
       }
       
       setFlights(flightsData)
-      setCurrentPage(1) // Reset to first page on new search
+      setCurrentPage(1) 
       
-      // Fetch images for each flight
       const imagesMap = {}
       for (const flight of flightsData) {
         try {
@@ -200,7 +187,6 @@ const FlightSearch = () => {
             if (flight.flight_id) imagesMap[flight.flight_id] = imageUrl
           }
         } catch (imgErr) {
-          // Image not found, use placeholder - only log if it's not a 404
           if (imgErr.response?.status !== 404) {
             console.log(`Error fetching image for flight ${flight.flight_id || flight._id}:`, imgErr.message)
           }
@@ -224,11 +210,9 @@ const FlightSearch = () => {
   }
 
   useEffect(() => {
-    // Only refetch if we have valid search params
     if (originParam && destinationParam) {
       fetchFlights()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortBy])
 
   const formatTime = (dateString) => {

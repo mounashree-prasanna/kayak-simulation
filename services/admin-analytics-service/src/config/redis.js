@@ -1,27 +1,21 @@
 const redis = require('redis');
 
-// Redis connection configuration
 const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
 const REDIS_PORT = parseInt(process.env.REDIS_PORT) || 6379;
 const REDIS_PASSWORD = process.env.REDIS_PASSWORD || null;
 
-// Create Redis client
 let client = null;
 
 /**
- * Initialize Redis connection
- * @returns {Promise<redis.RedisClient>} Redis client instance
+ * @returns {Promise<redis.RedisClient>} 
  */
 const connectRedis = async () => {
   try {
-    // Check if client exists and is connected
     if (client) {
       try {
-        // Try to ping to check if connection is alive
         await client.ping();
         return client;
       } catch (err) {
-        // Connection is dead, create new one
         client = null;
       }
     }
@@ -30,7 +24,6 @@ const connectRedis = async () => {
       socket: {
         host: REDIS_HOST,
         port: REDIS_PORT,
-        // Disable IPv6 to avoid connection issues
         family: 4, // Force IPv4
       },
     };
@@ -58,9 +51,8 @@ const connectRedis = async () => {
 };
 
 /**
- * Get value from Redis by key
  * @param {string} key - Redis key
- * @returns {Promise<string|null>} Value or null if not found
+ * @returns {Promise<string|null>} 
  */
 const get = async (key) => {
   try {
@@ -115,16 +107,14 @@ const set = async (key, value, ttlSeconds = null) => {
 };
 
 /**
- * Delete a key from Redis
  * @param {string} key - Redis key
- * @returns {Promise<boolean>} Success status
+ * @returns {Promise<boolean>} 
  */
 const del = async (key) => {
   try {
     if (!client) {
       await connectRedis();
     } else {
-      // Verify connection is alive
       try {
         await client.ping();
       } catch (err) {
@@ -140,7 +130,6 @@ const del = async (key) => {
 };
 
 /**
- * Delete multiple keys matching a pattern
  * @param {string} pattern - Redis key pattern (e.g., "analytics:*")
  * @returns {Promise<number>} Number of keys deleted
  */
@@ -156,7 +145,6 @@ const delPattern = async (pattern) => {
       }
     }
     
-    // Use SCAN to find all keys matching pattern
     const keys = [];
     for await (const key of client.scanIterator({ MATCH: pattern })) {
       keys.push(key);
@@ -173,7 +161,6 @@ const delPattern = async (pattern) => {
 };
 
 /**
- * Close Redis connection
  * @returns {Promise<void>}
  */
 const disconnect = async () => {
@@ -182,7 +169,6 @@ const disconnect = async () => {
       try {
         await client.quit();
       } catch (err) {
-        // Connection might already be closed
       }
       client = null;
     }

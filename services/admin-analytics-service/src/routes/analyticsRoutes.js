@@ -14,7 +14,10 @@ const {
   getProviderListingClicks,
   getProviderLeastSeenSections,
   getProviderReviews,
-  getProviderUserTraces
+  getProviderUserTraces,
+  getAllProviders,
+  getProviderRevenue,
+  getProviderTopListings
 } = require('../controllers/analyticsController');
 
 // All routes require admin authentication
@@ -24,6 +27,7 @@ router.use(requireAdmin);
 router.get('/top-properties', getTopProperties);
 router.get('/city-revenue', getCityRevenue);
 router.get('/top-providers', getTopProviders);
+router.get('/providers', getAllProviders);
 router.get('/bills', getBills);
 router.get('/clicks-per-page', getClicksPerPage);
 router.get('/listing-clicks', getListingClicks);
@@ -36,6 +40,8 @@ router.get('/providers/:provider_id/listing-clicks', getProviderListingClicks);
 router.get('/providers/:provider_id/least-seen-sections', getProviderLeastSeenSections);
 router.get('/providers/:provider_id/reviews', getProviderReviews);
 router.get('/providers/:provider_id/user-traces', getProviderUserTraces);
+router.get('/providers/:provider_id/revenue', getProviderRevenue);
+router.get('/providers/:provider_id/top-listings', getProviderTopListings);
 
 module.exports = router;
 

@@ -14,9 +14,9 @@ const MyBookings = () => {
   const [error, setError] = useState(null)
   const [filter, setFilter] = useState('all')
   const [reviewModal, setReviewModal] = useState({ isOpen: false, booking: null, listing: null })
-  const [userReviews, setUserReviews] = useState({}) // Map of entity_id -> review
-  const [listingDetails, setListingDetails] = useState({}) // Map of reference_id -> listing details
-  const [listingImages, setListingImages] = useState({}) // Map of reference_id -> images
+  const [userReviews, setUserReviews] = useState({}) 
+  const [listingDetails, setListingDetails] = useState({})
+  const [listingImages, setListingImages] = useState({}) 
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -77,7 +77,6 @@ const MyBookings = () => {
             setListingImages(prev => ({ ...prev, [referenceId]: images }))
           }
         } catch (imgErr) {
-          // Images not found, continue without them
         }
         
         return listing
@@ -92,15 +91,12 @@ const MyBookings = () => {
     try {
       setLoading(true)
       const params = filter !== 'all' ? { status: filter } : {}
-      // Try different endpoint formats
       let response
       try {
         response = await api.get(`/bookings/users/${user.user_id || user._id}/bookings`, { params })
       } catch (err) {
-        // Fallback: try to get all bookings and filter client-side
         response = await api.get('/bookings', { params })
         if (response.data.data) {
-          // Filter by user if needed
           response.data.data = response.data.data.filter(b => 
             b.user_id === (user.user_id || user._id) || 
             b.user === (user.user_id || user._id)
@@ -111,7 +107,6 @@ const MyBookings = () => {
       setBookings(bookingsData)
       setError(null)
       
-      // Fetch listing details for each booking
       const detailsMap = {}
       const fetchPromises = bookingsData.map(async (booking) => {
         const listing = await fetchListingDetails(booking)
@@ -149,7 +144,6 @@ const MyBookings = () => {
 
   const handleWriteReview = async (booking) => {
     try {
-      // Fetch listing details
       const bookingType = booking.type || booking.booking_type
       const referenceId = booking.reference_id
       
@@ -217,7 +211,6 @@ const MyBookings = () => {
         comment: reviewData.comment
       })
 
-      // Refresh user reviews
       await fetchUserReviews()
       alert('Review submitted successfully!')
     } catch (err) {
@@ -321,7 +314,6 @@ const MyBookings = () => {
                   displayName = `${listing.airline || listing.airline_name || 'Flight'} - ${listing.flight_number || booking.reference_id}`
                 }
               } else {
-                // Fallback to booking data
                 if (bookingType?.toLowerCase() === 'hotel') {
                   displayName = booking.hotel?.hotel_name || 'Hotel'
                 } else if (bookingType?.toLowerCase() === 'car') {

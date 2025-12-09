@@ -13,22 +13,19 @@ const Booking = () => {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   
-  // Get guest count from URL params (for hotels) - used for capacity/pricing, but only collect primary guest info
   const guestsParam = searchParams.get('guests')
   const numGuests = guestsParam ? parseInt(guestsParam) : 1
   
-  // Initialize form data - only primary guest info needed
   const [formData, setFormData] = useState({
     passengers: [{ firstName: '', lastName: '', dateOfBirth: '', passportNumber: '' }],
     checkIn: searchParams.get('checkIn') || '',
     checkOut: searchParams.get('checkOut') || '',
-    guests: [{ firstName: '', lastName: '', age: '' }], // Only primary guest
+    guests: [{ firstName: '', lastName: '', age: '' }],
     pickupDate: '',
     dropoffDate: '',
     driver: { firstName: '', lastName: '', licenseNumber: '', dateOfBirth: '' }
   })
 
-  // Helper function to get today's date in YYYY-MM-DD format
   const getTodayDate = () => {
     const today = new Date()
     const year = today.getFullYear()
@@ -37,7 +34,6 @@ const Booking = () => {
     return `${year}-${month}-${day}`
   }
 
-  // Helper function to format date for min attribute
   const getMinDate = (startDate = null) => {
     if (startDate) {
       return startDate
@@ -53,7 +49,6 @@ const Booking = () => {
     fetchItem()
   }, [type, id, isAuthenticated, navigate])
 
-  // Update check-in/check-out dates when params change (for hotels)
   useEffect(() => {
     if (type === 'hotel') {
       const checkIn = searchParams.get('checkIn') || ''
@@ -104,7 +99,6 @@ const Booking = () => {
       const newValue = e.target.value
       const fieldName = e.target.name
       
-      // If check-in date changes and check-out is before new check-in, clear check-out
       if (fieldName === 'checkIn' && formData.checkOut && newValue) {
         const checkOutDate = new Date(formData.checkOut)
         const newCheckInDate = new Date(newValue)
@@ -114,7 +108,6 @@ const Booking = () => {
         }
       }
       
-      // If pick-up date changes and drop-off is before new pick-up, clear drop-off
       if (fieldName === 'pickupDate' && formData.dropoffDate && newValue) {
         const dropoffDate = new Date(formData.dropoffDate)
         const newPickupDate = new Date(newValue)
@@ -128,6 +121,34 @@ const Booking = () => {
     }
   }
 
+  const validatePassportNumber = (passportNumber) => {
+    if (!passportNumber || !passportNumber.trim()) {
+      return 'Passport number is required'
+    }
+
+    const passportRegex = /^[A-Z0-9]{6,9}$/i
+    if (!passportRegex.test(passportNumber.trim())) {
+      return 'Passport number must be 6-9 alphanumeric characters'
+    }
+    return null
+  }
+
+  const validateLicenseNumber = (licenseNumber) => {
+    if (!licenseNumber || !licenseNumber.trim()) {
+      return 'License number is required'
+    }
+
+    const cleaned = licenseNumber.replace(/[\s\-]/g, '')
+    if (cleaned.length < 6 || cleaned.length > 12) {
+      return 'License number must be between 6 and 12 characters (excluding spaces and hyphens)'
+    }
+    const licenseRegex = /^[A-Z0-9]+$/i
+    if (!licenseRegex.test(cleaned)) {
+      return 'License number must contain only letters and numbers'
+    }
+    return null
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSubmitting(true)
@@ -139,7 +160,27 @@ const Booking = () => {
         return
       }
 
-      // Map frontend type to backend booking_type (capitalized)
+      if (type === 'flight') {
+        for (let i = 0; i < formData.passengers.length; i++) {
+          const passenger = formData.passengers[i]
+          const passportError = validatePassportNumber(passenger.passportNumber)
+          if (passportError) {
+            alert(`Passenger ${i + 1}: ${passportError}`)
+            setSubmitting(false)
+            return
+          }
+        }
+      }
+
+      if (type === 'car') {
+        const licenseError = validateLicenseNumber(formData.driver.licenseNumber)
+        if (licenseError) {
+          alert(`Driver Information: ${licenseError}`)
+          setSubmitting(false)
+          return
+        }
+      }
+
       const bookingTypeMap = {
         'flight': 'Flight',
         'hotel': 'Hotel',
@@ -154,46 +195,39 @@ const Booking = () => {
       let bookingData = {
         user_id: user.user_id,
         booking_type: booking_type,
-        reference_id: id, // The hotel/flight/car ID
+        reference_id: id, 
         start_date: '',
         end_date: '',
         total_price: 0
       }
 
-      // Calculate dates and price based on type
       if (type === 'flight') {
-        // For flights, use the flight's departure_datetime from the item
-        // If not available, try to get date from URL params or use current date as fallback
+
         let flightDate = null
         const dateParam = searchParams.get('date')
         
         if (item?.departure_datetime) {
-          // Use the flight's actual departure datetime
           flightDate = new Date(item.departure_datetime)
         } else if (dateParam) {
-          // Use date from URL params (from search)
           const [year, month, day] = dateParam.split('-').map(Number)
           flightDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
         } else {
-          // Fallback to current date (shouldn't happen in normal flow)
           flightDate = new Date()
         }
         
         bookingData.start_date = flightDate.toISOString()
-        bookingData.end_date = flightDate.toISOString() // Same day for flights
+        bookingData.end_date = flightDate.toISOString() 
         bookingData.total_price = item?.ticket_price || 0
       } else if (type === 'hotel') {
         if (!formData.checkIn || !formData.checkOut) {
           alert('Please select check-in and check-out dates')
           return
         }
-        // Fix timezone issue: use local date at midnight to avoid day shift
         const checkInDate = new Date(formData.checkIn + 'T00:00:00')
         const checkOutDate = new Date(formData.checkOut + 'T00:00:00')
         bookingData.start_date = checkInDate.toISOString()
         bookingData.end_date = checkOutDate.toISOString()
         
-        // Calculate total price: price_per_night * number of nights
         const nights = Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24))
         bookingData.total_price = (item?.price_per_night || 0) * nights
       } else if (type === 'car') {
@@ -201,13 +235,11 @@ const Booking = () => {
           alert('Please select pick-up and drop-off dates')
           return
         }
-        // Fix timezone issue: use local date at midnight to avoid day shift
         const pickupDate = new Date(formData.pickupDate + 'T00:00:00')
         const dropoffDate = new Date(formData.dropoffDate + 'T00:00:00')
         bookingData.start_date = pickupDate.toISOString()
         bookingData.end_date = dropoffDate.toISOString()
         
-        // Calculate total price: price_per_day * number of days
         const days = Math.ceil((dropoffDate - pickupDate) / (1000 * 60 * 60 * 24))
         bookingData.total_price = (item?.daily_rental_price || item?.price_per_day || 0) * days
       }
@@ -290,14 +322,18 @@ const Booking = () => {
                           />
                         </div>
                         <div className="form-group">
-                          <label>Passport Number</label>
+                          <label>Passport Number <span className="required">*</span></label>
                           <input
                             type="text"
                             name="passportNumber"
                             value={passenger.passportNumber}
                             onChange={(e) => handleChange(e, index)}
+                            placeholder="6-9 alphanumeric characters"
+                            pattern="[A-Za-z0-9]{6,9}"
+                            title="Passport number must be 6-9 alphanumeric characters"
                             required
                           />
+                          <small className="field-hint">6-9 alphanumeric characters</small>
                         </div>
                       </div>
                     </div>
@@ -429,14 +465,17 @@ const Booking = () => {
                   </div>
                   <div className="form-row">
                     <div className="form-group">
-                      <label>License Number</label>
+                      <label>License Number <span className="required">*</span></label>
                       <input
                         type="text"
                         name="licenseNumber"
                         value={formData.driver.licenseNumber}
                         onChange={(e) => handleChange(e, null, 'driver')}
+                        placeholder="6-12 alphanumeric characters"
+                        title="License number must be 6-12 alphanumeric characters"
                         required
                       />
+                      <small className="field-hint">6-12 alphanumeric characters</small>
                     </div>
                     <div className="form-group">
                       <label>Date of Birth</label>
@@ -478,9 +517,35 @@ const Booking = () => {
             </div>
             <div className="summary-price">
               <div className="price-label">Total Price</div>
-              <div className="price">${type === 'flight' ? item.ticket_price : 
-                                      type === 'hotel' ? item.price_per_night : 
-                                      item.price_per_day}</div>
+              <div className="price">
+                {type === 'flight' ? (
+                  `$${Math.round(item?.ticket_price || 0)}`
+                ) : type === 'hotel' ? (
+                  (() => {
+                    if (formData.checkIn && formData.checkOut) {
+                      const checkInDate = new Date(formData.checkIn + 'T00:00:00')
+                      const checkOutDate = new Date(formData.checkOut + 'T00:00:00')
+                      const nights = Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24))
+                      const totalPrice = (item?.price_per_night || 0) * nights
+                      return `$${Math.round(totalPrice)}`
+                    }
+                    return `$${Math.round(item?.price_per_night || 0)}`
+                  })()
+                ) : (
+                  (() => {
+                    if (formData.pickupDate && formData.dropoffDate) {
+                      const pickupDate = new Date(formData.pickupDate + 'T00:00:00')
+                      const dropoffDate = new Date(formData.dropoffDate + 'T00:00:00')
+                      const days = Math.ceil((dropoffDate - pickupDate) / (1000 * 60 * 60 * 24))
+                      const dailyPrice = item?.daily_rental_price || item?.price_per_day || 0
+                      const totalPrice = dailyPrice * days
+                      return `$${Math.round(totalPrice)}`
+                    }
+                    const dailyPrice = item?.daily_rental_price || item?.price_per_day || 0
+                    return `$${Math.round(dailyPrice)}`
+                  })()
+                )}
+              </div>
             </div>
           </div>
         </div>

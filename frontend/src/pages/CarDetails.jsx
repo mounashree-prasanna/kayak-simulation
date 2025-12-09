@@ -19,7 +19,6 @@ const CarDetails = () => {
 
   useEffect(() => {
     fetchCar()
-    // Log page visit for analytics
     const pagePath = `/cars/${id}`
     logPageClick(pagePath, 'car-details-page', user?.user_id || user?._id || null)
   }, [id])
@@ -37,32 +36,33 @@ const CarDetails = () => {
       const carData = response.data.data
       setCar(carData)
       
-      // Log listing click/view for analytics
       const carId = carData.car_id || carData._id || id
       if (carId) {
         logListingClick('Car', carId, user?.user_id || user?._id || null)
       }
       
-      // Fetch images for the car - try both car_id and _id
-      try {
-        const carId = carData.car_id || id
-        const imageResponse = await api.get('/images', {
-          params: { entity_type: 'Car', entity_id: String(carId) }
-        })
-        if (imageResponse.data.success && imageResponse.data.data) {
-          setCarImages(imageResponse.data.data.map(img => img.image_url))
-        }
-      } catch (imgErr) {
-        // Try with _id if car_id didn't work
+      if (carData.image_url) {
+        setCarImages([carData.image_url])
+      } else {
         try {
+          const carId = carData.car_id || id
           const imageResponse = await api.get('/images', {
-            params: { entity_type: 'Car', entity_id: String(id) }
+            params: { entity_type: 'Car', entity_id: String(carId) }
           })
           if (imageResponse.data.success && imageResponse.data.data) {
             setCarImages(imageResponse.data.data.map(img => img.image_url))
           }
-        } catch (imgErr2) {
-          console.log('No images found for car')
+        } catch (imgErr) {
+          try {
+            const imageResponse = await api.get('/images', {
+              params: { entity_type: 'Car', entity_id: String(id) }
+            })
+            if (imageResponse.data.success && imageResponse.data.data) {
+              setCarImages(imageResponse.data.data.map(img => img.image_url))
+            }
+          } catch (imgErr2) {
+            console.log('No images found for car')
+          }
         }
       }
       
@@ -82,34 +82,27 @@ const CarDetails = () => {
     try {
       setReviewsLoading(true)
       
-      // Try multiple ID formats to match reviews
       const possibleIds = []
       
       if (car) {
-        // Add car._id (MongoDB ObjectId) - this is likely what reviews use
         if (car._id) {
           possibleIds.push(String(car._id))
         }
-        // Add car.car_id (string field)
         if (car.car_id) {
           possibleIds.push(String(car.car_id))
         }
       }
-      // Add URL id parameter
       if (id) {
         possibleIds.push(String(id))
       }
       
-      // Remove duplicates
       const uniqueIds = [...new Set(possibleIds)]
       
-      // Try fetching reviews with each ID format
       let allReviews = []
       let aggregateData = null
       
       for (const carId of uniqueIds) {
         try {
-          // Fetch reviews
           const reviewsResponse = await api.get('/reviews', {
             params: { entity_type: 'Car', entity_id: carId }
           })
@@ -117,7 +110,6 @@ const CarDetails = () => {
             allReviews = [...allReviews, ...reviewsResponse.data.data]
           }
 
-          // Fetch aggregate ratings (use the first successful one)
           if (!aggregateData) {
             const ratingResponse = await api.get('/reviews/aggregate/ratings', {
               params: { entity_type: 'Car', entity_id: carId }
@@ -127,12 +119,10 @@ const CarDetails = () => {
             }
           }
         } catch (err) {
-          // Continue trying other IDs
           continue
         }
       }
       
-      // Remove duplicate reviews by _id
       const uniqueReviews = allReviews.filter((review, index, self) =>
         index === self.findIndex(r => r._id === review._id)
       )

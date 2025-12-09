@@ -20,7 +20,6 @@ const HotelDetails = () => {
 
   useEffect(() => {
     fetchHotel()
-    // Log page visit for analytics
     const pagePath = `/hotels/${id}`
     logPageClick(pagePath, 'hotel-details-page', user?.user_id || user?._id || null)
   }, [id, searchParams])
@@ -34,7 +33,6 @@ const HotelDetails = () => {
   const fetchHotel = async () => {
     try {
       setLoading(true)
-      // Pass check-in/check-out dates if available from URL search params
       const checkIn = searchParams.get('checkIn')
       const checkOut = searchParams.get('checkOut')
       let url = `/hotels/${id}`
@@ -45,32 +43,33 @@ const HotelDetails = () => {
       const hotelData = response.data.data
       setHotel(hotelData)
       
-      // Log listing click/view for analytics
       const hotelId = hotelData.hotel_id || hotelData._id || id
       if (hotelId) {
         logListingClick('Hotel', hotelId, user?.user_id || user?._id || null)
       }
       
-      // Fetch images for the hotel - try both hotel_id and _id
-      try {
-        const hotelId = hotelData.hotel_id || id
-        const imageResponse = await api.get('/images', {
-          params: { entity_type: 'Hotel', entity_id: String(hotelId) }
-        })
-        if (imageResponse.data.success && imageResponse.data.data) {
-          setHotelImages(imageResponse.data.data.map(img => img.image_url))
-        }
-      } catch (imgErr) {
-        // Try with _id if hotel_id didn't work
+      if (hotelData.image_url) {
+        setHotelImages([hotelData.image_url])
+      } else {
         try {
+          const hotelId = hotelData.hotel_id || id
           const imageResponse = await api.get('/images', {
-            params: { entity_type: 'Hotel', entity_id: String(id) }
+            params: { entity_type: 'Hotel', entity_id: String(hotelId) }
           })
           if (imageResponse.data.success && imageResponse.data.data) {
             setHotelImages(imageResponse.data.data.map(img => img.image_url))
           }
-        } catch (imgErr2) {
-          console.log('No images found for hotel')
+        } catch (imgErr) {
+          try {
+            const imageResponse = await api.get('/images', {
+              params: { entity_type: 'Hotel', entity_id: String(id) }
+            })
+            if (imageResponse.data.success && imageResponse.data.data) {
+              setHotelImages(imageResponse.data.data.map(img => img.image_url))
+            }
+          } catch (imgErr2) {
+            console.log('No images found for hotel')
+          }
         }
       }
       
@@ -89,36 +88,28 @@ const HotelDetails = () => {
   const fetchReviews = async () => {
     try {
       setReviewsLoading(true)
-      
-      // Try multiple ID formats to match reviews
-      // Reviews might be stored with _id (ObjectId) or hotel_id (string)
+
       const possibleIds = []
       
       if (hotel) {
-        // Add hotel._id (MongoDB ObjectId) - this is likely what reviews use
         if (hotel._id) {
           possibleIds.push(String(hotel._id))
         }
-        // Add hotel.hotel_id (string field)
         if (hotel.hotel_id) {
           possibleIds.push(String(hotel.hotel_id))
         }
       }
-      // Add URL id parameter
       if (id) {
         possibleIds.push(String(id))
       }
       
-      // Remove duplicates
       const uniqueIds = [...new Set(possibleIds)]
       
-      // Try fetching reviews with each ID format
       let allReviews = []
       let aggregateData = null
       
       for (const hotelId of uniqueIds) {
         try {
-          // Fetch reviews
           const reviewsResponse = await api.get('/reviews', {
             params: { entity_type: 'Hotel', entity_id: hotelId }
           })
@@ -126,7 +117,6 @@ const HotelDetails = () => {
             allReviews = [...allReviews, ...reviewsResponse.data.data]
           }
 
-          // Fetch aggregate ratings (use the first successful one)
           if (!aggregateData) {
             const ratingResponse = await api.get('/reviews/aggregate/ratings', {
               params: { entity_type: 'Hotel', entity_id: hotelId }
@@ -136,12 +126,10 @@ const HotelDetails = () => {
             }
           }
         } catch (err) {
-          // Continue trying other IDs
           continue
         }
       }
       
-      // Remove duplicate reviews by _id
       const uniqueReviews = allReviews.filter((review, index, self) =>
         index === self.findIndex(r => r._id === review._id)
       )
@@ -158,7 +146,6 @@ const HotelDetails = () => {
 
   const handleBook = () => {
     if (!isAuthenticated) {
-      // Preserve search params in redirect URL
       const params = new URLSearchParams()
       const guests = searchParams.get('guests')
       const checkIn = searchParams.get('checkIn')
@@ -170,7 +157,6 @@ const HotelDetails = () => {
       navigate(`/login?redirect=/booking/hotel/${id}${queryString ? '?' + queryString : ''}`)
       return
     }
-    // Pass search params to booking page
     const params = new URLSearchParams()
     const guests = searchParams.get('guests')
     const checkIn = searchParams.get('checkIn')

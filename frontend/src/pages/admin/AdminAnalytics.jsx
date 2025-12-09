@@ -14,9 +14,8 @@ const AdminAnalytics = () => {
   const [topProviders, setTopProviders] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  // Default to 2025 since that's where the test data is
   const [year, setYear] = useState(2025)
-  const [month, setMonth] = useState(12) // December - where the data is
+  const [month, setMonth] = useState('') 
 
   useEffect(() => {
     if (!isAuthenticated || role !== 'admin') {
@@ -50,7 +49,9 @@ const AdminAnalytics = () => {
       }
       
       // Fetch top providers
-      const providersResponse = await api.get('/analytics/top-providers', { params: { month, year } })
+      const providerParams = { year }
+      if (month) providerParams.month = month
+      const providersResponse = await api.get('/analytics/top-providers', { params: providerParams })
       if (providersResponse.data.success) {
         setTopProviders(providersResponse.data.data || [])
       }
@@ -121,15 +122,19 @@ const AdminAnalytics = () => {
               <label>Month (for Top Providers):</label>
               <select
                 value={month}
-                onChange={(e) => setMonth(parseInt(e.target.value))}
+                onChange={(e) => setMonth(e.target.value)}
                 className="control-input"
               >
+                <option value="">All months (yearly)</option>
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
                   <option key={m} value={m}>
                     {new Date(2000, m - 1).toLocaleString('default', { month: 'long' })}
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="control-group control-group-end">
+              <button onClick={() => navigate('/admin/providers')} className="btn-view-provider">See all providers</button>
             </div>
           </div>
 
@@ -197,7 +202,9 @@ const AdminAnalytics = () => {
               </div>
 
               <div className="analytics-section">
-                <h2>Top 10 Providers (Last Month)</h2>
+                <div className="section-header-row">
+                  <h2>Top 10 Providers ({month ? `Month ${month} ${year}` : `Year ${year}`})</h2>
+                </div>
                 <div className="admin-table-container">
                   <table className="admin-table">
                     <thead>

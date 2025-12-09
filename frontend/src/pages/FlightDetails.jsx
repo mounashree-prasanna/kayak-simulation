@@ -20,7 +20,6 @@ const FlightDetails = () => {
 
   useEffect(() => {
     fetchFlight()
-    // Log page visit for analytics
     const pagePath = `/flights/${id}`
     logPageClick(pagePath, 'flight-details-page', user?.user_id || user?._id || null)
   }, [id, searchParams])
@@ -34,14 +33,12 @@ const FlightDetails = () => {
   const fetchFlight = async () => {
     try {
       setLoading(true)
-      // Pass date parameter if available from URL search params
       const dateParam = searchParams.get('date')
       const url = dateParam ? `/flights/${id}?date=${dateParam}` : `/flights/${id}`
       const response = await api.get(url)
       const flightData = response.data.data
       setFlight(flightData)
       
-      // Log listing click/view for analytics
       const flightId = flightData.flight_id || flightData._id || id
       if (flightId) {
         logListingClick('Flight', flightId, user?.user_id || user?._id || null)
@@ -63,34 +60,27 @@ const FlightDetails = () => {
     try {
       setReviewsLoading(true)
       
-      // Try multiple ID formats to match reviews
       const possibleIds = []
       
       if (flight) {
-        // Add flight._id (MongoDB ObjectId) - this is likely what reviews use
         if (flight._id) {
           possibleIds.push(String(flight._id))
         }
-        // Add flight.flight_id (string field)
         if (flight.flight_id) {
           possibleIds.push(String(flight.flight_id))
         }
       }
-      // Add URL id parameter
       if (id) {
         possibleIds.push(String(id))
       }
       
-      // Remove duplicates
       const uniqueIds = [...new Set(possibleIds)]
       
-      // Try fetching reviews with each ID format
       let allReviews = []
       let aggregateData = null
       
       for (const flightId of uniqueIds) {
         try {
-          // Fetch reviews
           const reviewsResponse = await api.get('/reviews', {
             params: { entity_type: 'Flight', entity_id: flightId }
           })
@@ -98,7 +88,6 @@ const FlightDetails = () => {
             allReviews = [...allReviews, ...reviewsResponse.data.data]
           }
 
-          // Fetch aggregate ratings (use the first successful one)
           if (!aggregateData) {
             const ratingResponse = await api.get('/reviews/aggregate/ratings', {
               params: { entity_type: 'Flight', entity_id: flightId }
@@ -108,12 +97,10 @@ const FlightDetails = () => {
             }
           }
         } catch (err) {
-          // Continue trying other IDs
           continue
         }
       }
       
-      // Remove duplicate reviews by _id
       const uniqueReviews = allReviews.filter((review, index, self) =>
         index === self.findIndex(r => r._id === review._id)
       )
@@ -130,13 +117,11 @@ const FlightDetails = () => {
 
   const handleBook = () => {
     if (!isAuthenticated) {
-      // Preserve date param in redirect URL
       const dateParam = searchParams.get('date')
       const redirectUrl = `/booking/flight/${id}${dateParam ? '?date=' + dateParam : ''}`
       navigate('/login?redirect=' + encodeURIComponent(redirectUrl))
       return
     }
-    // Pass date parameter to booking page if available
     const dateParam = searchParams.get('date')
     navigate(`/booking/flight/${id}${dateParam ? '?date=' + dateParam : ''}`)
   }
@@ -175,7 +160,6 @@ const FlightDetails = () => {
     }
   }
   
-  // Helper to get field value with fallback
   const getField = (obj, ...paths) => {
     for (const path of paths) {
       const value = path.split('.').reduce((o, p) => o?.[p], obj)

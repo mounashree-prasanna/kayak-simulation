@@ -16,21 +16,15 @@ const handleBillingEvent = async (message) => {
 
     const { booking_id } = data;
 
-    // Handle billing_success event
-    // Note: The booking status is already updated to Confirmed in the billing transaction,
-    // but we check and update here as a safety mechanism (idempotent), and emit booking_confirmed event
     if (event_type === 'billing_success') {
       console.log(`[Booking Service] Processing billing_success for booking: ${booking_id}`);
       try {
-        // Update booking status (idempotent - safe if already Confirmed)
         await updateBookingStatus(booking_id, 'Confirmed');
         console.log(`[Booking Service] Booking ${booking_id} status updated to Confirmed`);
         
-        // Fetch updated booking to publish booking_confirmed event
         const BookingRepository = require('../repositories/bookingRepository');
         const updatedBooking = await BookingRepository.findByBookingId(booking_id);
         
-        // Publish booking_confirmed event
         const { publishBookingEvent } = require('../config/kafka');
         if (updatedBooking) {
           await publishBookingEvent('booking_confirmed', updatedBooking);
@@ -38,10 +32,8 @@ const handleBillingEvent = async (message) => {
         }
       } catch (error) {
         console.error(`[Booking Service] Failed to update booking status to Confirmed:`, error.message);
-        // In a real saga, you might want to implement compensation logic here
       }
     }
-    // Handle billing_failed event - update booking to PaymentFailed
     else if (event_type === 'billing_failed') {
       console.log(`[Booking Service] Processing billing_failed for booking: ${booking_id}`);
       try {

@@ -1,9 +1,7 @@
 const mysql = require('mysql2/promise');
 
-// Feature flag for connection pooling
 const ENABLE_POOLING = process.env.ENABLE_POOLING !== 'false'; // Default: enabled
 
-// MySQL connection pool configuration for ACID compliance
 const pool = mysql.createPool({
   host: process.env.MYSQL_HOST || 'localhost',
   port: parseInt(process.env.MYSQL_PORT) || 3306,

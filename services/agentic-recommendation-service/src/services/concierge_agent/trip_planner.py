@@ -13,7 +13,6 @@ from src.models.bundle import BundleRecommendation, FlightBundle, HotelBundle
 class TripPlanner:
     def __init__(self):
         self.cache = CachingService()
-        # Listing service URL for fallback when no deals in database
         self.listing_service_url = os.getenv("LISTING_SERVICE_URL", "http://listing-service:3002")
     
     async def find_deals(
@@ -37,52 +36,80 @@ class TripPlanner:
             print(f"[Trip Planner] Using cached deals")
             return cached_flights, cached_hotels
         
-        # Fallback to SQLite
-        session = get_session()
+        # Always fetch from listing service first (fresh data with new listings)
+        print(f"[Trip Planner] Fetching from listing service (fresh data)...", flush=True)
         try:
-            # Get flight deals - match by origin/destination only (date filtering too strict for demo data)
-            # In production, you'd want date filtering, but for demo we'll show any matching route
-            flight_deals = session.query(FlightDeal).filter(
-                FlightDeal.origin.ilike(f"%{origin}%"),
-                FlightDeal.destination.ilike(f"%{destination}%")
-            ).order_by(FlightDeal.deal_score.desc(), FlightDeal.current_price.asc()).limit(10).all()
+            flights, hotels = await self._fetch_from_listing_service(
+                origin, destination, check_in, check_out
+            )
+            print(f"[Trip Planner] Listing service results: {len(flights)} flights, {len(hotels)} hotels", flush=True)
             
-            # Get hotel deals - relax date filtering and city matching
-            hotel_deals = session.query(HotelDeal).filter(
-                HotelDeal.city.ilike(f"%{destination}%")
-            ).order_by(HotelDeal.deal_score.desc()).limit(10).all()
+            # Enhance with SQLite deal scores if available (optional enhancement)
+            session = get_session()
+            try:
+                # Try to find matching deals in SQLite to enhance with deal scores
+                if flights:
+                    # Get SQLite flight deals for this route
+                    sqlite_flight_deals = session.query(FlightDeal).filter(
+                        FlightDeal.origin.ilike(f"%{origin}%"),
+                        FlightDeal.destination.ilike(f"%{destination}%")
+                    ).all()
+                    
+                    # Create a map of listing_id -> deal_score
+                    deal_score_map = {deal.listing_id: deal.deal_score for deal in sqlite_flight_deals}
+                    
+                    # Enhance flights with deal scores if available
+                    for flight in flights:
+                        listing_id = flight.get("listing_id", "")
+                        if listing_id in deal_score_map:
+                            flight["deal_score"] = deal_score_map[listing_id]
+                            print(f"[Trip Planner] Enhanced flight {listing_id} with deal score {deal_score_map[listing_id]}", flush=True)
+                
+                if hotels:
+                    # Get SQLite hotel deals for this destination
+                    sqlite_hotel_deals = session.query(HotelDeal).filter(
+                        HotelDeal.city.ilike(f"%{destination}%")
+                    ).all()
+                    
+                    # Create a map of listing_id -> deal_score
+                    deal_score_map = {deal.listing_id: deal.deal_score for deal in sqlite_hotel_deals}
+                    
+                    # Enhance hotels with deal scores if available
+                    for hotel in hotels:
+                        listing_id = hotel.get("listing_id", "")
+                        if listing_id in deal_score_map:
+                            hotel["deal_score"] = deal_score_map[listing_id]
+                            print(f"[Trip Planner] Enhanced hotel {listing_id} with deal score {deal_score_map[listing_id]}", flush=True)
+            except Exception as e:
+                print(f"[Trip Planner] Error enhancing with SQLite scores: {e}", flush=True)
+            finally:
+                session.close()
+                
+        except Exception as e:
+            print(f"[Trip Planner] Listing service failed: {e}, trying SQLite fallback...", flush=True)
+            import traceback
+            traceback.print_exc()
             
-            # If no hotels found for destination, try broader search (any city)
-            if not hotel_deals:
-                print(f"[Trip Planner] No hotels found for {destination}, trying any city...", flush=True)
-                hotel_deals = session.query(HotelDeal).order_by(HotelDeal.deal_score.desc()).limit(10).all()
-            
-            # Convert to dicts
-            flights = [self._flight_to_dict(f) for f in flight_deals]
-            hotels = [self._hotel_to_dict(h) for h in hotel_deals]
-            
-            print(f"[Trip Planner] SQLite query results: {len(flights)} flights, {len(hotels)} hotels", flush=True)
-            
-            # If no deals found in SQLite, try listing service as fallback
-            # Trigger fallback if either flights or hotels are missing
-            if not flights or not hotels:
-                print(f"[Trip Planner] No deals in database (flights={len(flights)}, hotels={len(hotels)}), trying listing service fallback...", flush=True)
-                try:
-                    fallback_flights, fallback_hotels = await self._fetch_from_listing_service(
-                        origin, destination, check_in, check_out
-                    )
-                    print(f"[Trip Planner] Fallback results: {len(fallback_flights)} flights, {len(fallback_hotels)} hotels", flush=True)
-                    # Use fallback data if we don't have it from SQLite
-                    if not flights and fallback_flights:
-                        flights = fallback_flights
-                        print(f"[Trip Planner] Using {len(flights)} flights from listing service", flush=True)
-                    if not hotels and fallback_hotels:
-                        hotels = fallback_hotels
-                        print(f"[Trip Planner] Using {len(hotels)} hotels from listing service", flush=True)
-                except Exception as e:
-                    print(f"[Trip Planner] Listing service fallback failed: {e}", flush=True)
-                    import traceback
-                    traceback.print_exc()
+            # Fallback to SQLite if listing service fails
+            session = get_session()
+            try:
+                flight_deals = session.query(FlightDeal).filter(
+                    FlightDeal.origin.ilike(f"%{origin}%"),
+                    FlightDeal.destination.ilike(f"%{destination}%")
+                ).order_by(FlightDeal.deal_score.desc(), FlightDeal.current_price.asc()).limit(10).all()
+                
+                hotel_deals = session.query(HotelDeal).filter(
+                    HotelDeal.city.ilike(f"%{destination}%")
+                ).order_by(HotelDeal.deal_score.desc()).limit(10).all()
+                
+                if not hotel_deals:
+                    hotel_deals = session.query(HotelDeal).order_by(HotelDeal.deal_score.desc()).limit(10).all()
+                
+                flights = [self._flight_to_dict(f) for f in flight_deals]
+                hotels = [self._hotel_to_dict(h) for h in hotel_deals]
+                print(f"[Trip Planner] SQLite fallback results: {len(flights)} flights, {len(hotels)} hotels", flush=True)
+            finally:
+                session.close()
             
             # Cache results
             if flights:
@@ -107,8 +134,6 @@ class TripPlanner:
             hotels = []
             
             try:
-                # Fetch flights
-                # Try both airport codes and city names
                 flight_params = {
                     "origin": origin,
                     "destination": destination,
@@ -162,8 +187,6 @@ class TripPlanner:
                 print(f"[Trip Planner] Error fetching flights from listing service: {e}")
             
             try:
-                # Fetch hotels
-                # Map airport codes to cities for hotel search
                 city_map = {
                     "LAX": "Los Angeles", "JFK": "New York", "LGA": "New York", "EWR": "New York",
                     "NYC": "New York", "SFO": "San Francisco", "SEA": "Seattle", "DEN": "Denver",
@@ -303,10 +326,8 @@ class TripPlanner:
             else:
                 score += 5  # Way over budget
         else:
-            # No budget specified - give base score based on deal quality
             score += 20
         
-        # Deal score quality (20 points max) - use deal_score from database
         flight_deal_score = flight_deal.get("deal_score", 0) or 0
         hotel_deal_score = hotel_deal.get("deal_score", 0) or 0
         avg_deal_score = (flight_deal_score + hotel_deal_score) / 2
@@ -320,9 +341,8 @@ class TripPlanner:
         elif avg_deal_score >= 10:
             score += 5
         else:
-            score += 2  # Minimum points for having deals
+            score += 2  
         
-        # Amenity/policy match (30 points max)
         if constraints:
             if constraints.get("pet_friendly") and hotel_deal.get("pet_friendly"):
                 score += 10
@@ -448,8 +468,8 @@ class TripPlanner:
                     ),
                     total_price=flight.get("current_price", 0) + hotel.get("current_price", 0),
                     fit_score=fit_score,
-                    why_this="",  # Will be generated by explanation service
-                    what_to_watch=""  # Will be generated by explanation service
+                    why_this="", 
+                    what_to_watch=""  
                 )
                 
                 bundles.append(bundle)

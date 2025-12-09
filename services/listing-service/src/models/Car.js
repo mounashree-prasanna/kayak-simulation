@@ -68,6 +68,10 @@ const carSchema = new Schema({
     required: true,
     trim: true
   },
+  image_url: {
+    type: String,
+    trim: true
+  },
   created_at: {
     type: Date,
     default: Date.now
